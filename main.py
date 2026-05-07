@@ -19,6 +19,11 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
+
 import yaml
 from tqdm import tqdm
 
@@ -520,8 +525,8 @@ def main():
     # LLM 选项
     llm_group = parser.add_argument_group("LLM 选项")
     llm_group.add_argument("--llm-model", default="mimo-v2.5", help="LLM 模型 (默认: mimo-v2.5)")
-    llm_group.add_argument("--llm-base-url", default="https://token-plan-cn.xiaomimimo.com/v1", help="LLM API 地址")
-    llm_group.add_argument("--llm-api-key", default=None, help="LLM API Key (默认: tp-ccsnao28l45ikg37lkf2pfp05k0o8b3aj3w0rzfot79ijz4n)")
+    llm_group.add_argument("--llm-base-url", default=os.environ.get("LLM_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1"), help="LLM API 地址")
+    llm_group.add_argument("--llm-api-key", default=None, help="LLM API Key (默认从 .env 读取)")
     llm_group.add_argument("--llm-chunk-size", type=int, default=2000, help="LLM 文本块大小")
 
     # 其他
@@ -541,7 +546,7 @@ def main():
         logger.error(f"不支持的格式: {ext}（支持 .txt / .epub）")
         sys.exit(1)
 
-    api_key = args.api_key or os.environ.get("MIMO_API_KEY", "")
+    api_key = args.api_key or os.environ.get("TTS_API_KEY", os.environ.get("MIMO_API_KEY", ""))
     output_dir = args.output or str(Path(args.novel).parent / "audiobook")
 
     # EPUB 默认启用 LLM
@@ -566,7 +571,7 @@ def main():
     analysis_results = {}
 
     if args.use_llm or args.llm_only:
-        llm_api_key = args.llm_api_key or "tp-ccsnao28l45ikg37lkf2pfp05k0o8b3aj3w0rzfot79ijz4n"
+        llm_api_key = args.llm_api_key or os.environ.get("LLM_API_KEY", "")
 
         logger.info(f"\n{'═'*60}")
         logger.info(f"🤖 Step 2: LLM 分析 (并发: {args.llm_workers})")
@@ -597,7 +602,7 @@ def main():
 
     # ── Step 3: TTS 合成 ──────────────────────────────────
     if not api_key:
-        logger.error("TTS 合成需要 API Key")
+        logger.error("TTS 合成需要 API Key: 在 .env 中设置 TTS_API_KEY 或使用 --api-key")
         sys.exit(1)
 
     logger.info(f"\n{'═'*60}")
