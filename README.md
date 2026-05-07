@@ -251,6 +251,48 @@ LLM:
   --log-level LEVEL        DEBUG/INFO/WARNING/ERROR
 ```
 
+## Web UI
+
+项目提供了一个 Web 界面，支持可视化操作：
+
+### 启动
+
+```bash
+# 安装 Web 依赖
+pip install -r web/requirements.txt
+
+# 启动 Web 服务
+python web/api.py
+# 或
+uvicorn web.api:app --host 0.0.0.0 --port 8080
+```
+
+打开浏览器访问 `http://localhost:8080`
+
+### 功能
+
+- 📖 拖拽上传 EPUB/TXT
+- 📑 章节列表（搜索、状态标记）
+- 🔍 LLM 分析（一键分析、进度显示）
+- 🎤 音色配置（旁白 + 角色独立配置）
+- 🔊 TTS 合成（单章/批量）
+- 🎵 音频播放器（波形可视化）
+- 📦 导出音频 ZIP
+
+### API 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/upload` | 上传文件 |
+| GET | `/api/chapters` | 章节列表 |
+| GET | `/api/chapters/:id` | 章节内容+分析 |
+| POST | `/api/analyze` | LLM 分析 |
+| POST | `/api/synthesize` | TTS 合成 |
+| GET/PUT | `/api/voices` | 音色配置 |
+| GET | `/api/audio/:id` | 章节音频 |
+| GET | `/api/export` | 导出 ZIP |
+| GET | `/api/tasks/:id` | 任务状态 |
+
 ## 项目结构
 
 ```
@@ -264,6 +306,11 @@ novel-to-audiobook/
 ├── audio_merger.py      # 音频拼接与导出（FFmpeg）
 ├── config.py            # 配置管理（LLMConfig/TTSConfig）
 ├── dotenv.py            # .env 加载器
+├── web/                 # Web UI
+│   ├── api.py           # FastAPI 后端
+│   ├── index.html       # 前端页面
+│   ├── data/            # 项目数据（上传、分析、音频）
+│   └── requirements.txt # Web 依赖
 ├── .env                 # API Key 配置（不提交）
 ├── .env.example         # API Key 模板
 ├── requirements.txt
