@@ -1,5 +1,7 @@
 # 小说转有声书 — 基于小米 MiMo TTS 的多角色配音
 
+将小说（EPUB/TXT）自动转为多角色有声书。LLM 分析角色和对话，MiMo TTS 为每个角色分配不同音色和语气。
+
 ## 工作流
 
 ```
@@ -108,6 +110,55 @@ python main.py novel.epub --skip-llm --voices output/voices_auto.yaml
 python main.py novel.epub --skip-llm --resume-from 50
 ```
 
+## 音色与角色
+
+### 自动音色分配策略
+
+系统根据 LLM 识别的角色性别自动分配音色，并在同一性别的角色间轮换以避免重复：
+
+| 性别 | 可用音色 | 说明 |
+|------|----------|------|
+| 男性 | 白桦、苏打 | 白桦浑厚磁性，苏打清澈明亮 |
+| 女性 | 冰糖、茉莉 | 冰糖温暖亲和，茉莉清甜柔和 |
+| 未知 | 白桦 | 默认旁白音色 |
+
+**同性别角色自动轮换**：比如 3 个男性角色 → 白桦、苏打、白桦。
+
+### style_instruction — 同音色不同个性
+
+每个角色除了音色分配，还有独立的 `style_instruction` 控制语气风格。这让同一个音色演绎不同角色时也能听出区别：
+
+```yaml
+characters:
+  陈新:
+    voice_id: 白桦
+    style_instruction: 年轻男性，声音从容淡定，语速平稳，带一点自信
+  药农:
+    voice_id: 白桦
+    style_instruction: 苍老年迈，声音低沉沙哑，语速缓慢，朴实
+```
+
+### 旁白
+
+旁白使用固定音色（白桦），风格为"标准播音腔朗读"，不跟随角色。
+
+### voice_hint 自动合并
+
+LLM 分析时会为每个角色生成 `voice_hint`（如"苍老沙哑，语速缓慢"），合成时自动合并到 style_instruction，无需手动配置。
+
+## 预置音色一览
+
+| 音色 | 性别 | 风格 | 推荐用途 |
+|------|------|------|----------|
+| 白桦 | 男 | 浑厚磁性，成熟稳重 | 旁白、成熟男性主角 |
+| 苏打 | 男 | 清澈明亮，年轻活力 | 年轻男性角色 |
+| 冰糖 | 女 | 温暖亲和，甜美柔和 | 女性角色 |
+| 茉莉 | 女 | 清甜柔和，优雅知性 | 女性角色 |
+| Mia | 女 | — | 备选 |
+| Chloe | 女 | — | 备选 |
+| Milo | 男 | — | 备选 |
+| Dean | 男 | — | 备选 |
+
 ## 并发控制
 
 LLM 分析和 TTS 合成均支持多线程并发，每个章节独立处理：
@@ -154,46 +205,6 @@ output/
 └── voices_auto.yaml       # 自动生成的音色配置
 ```
 
-## LLM 分析结果
-
-### characters.json
-
-```json
-[
-  {"name": "陈新", "gender": "male", "age": "unknown", "voice_hint": "年轻男性，声音从容淡定"},
-  {"name": "刘民有", "gender": "male", "age": "unknown", "voice_hint": "年轻男性，声音紧张焦虑"}
-]
-```
-
-### voices_auto.yaml（自动生成，可手动编辑）
-
-```yaml
-default:
-  mode: preset
-  voice_id: 白桦
-  style_instruction: 用标准播音腔朗读
-
-characters:
-  陈新:
-    mode: voicedesign
-    voice_prompt: 男性，年轻，声音从容淡定
-  刘民有:
-    mode: voicedesign
-    voice_prompt: 男性，年轻，声音紧张焦虑
-```
-
-## 角色配置说明
-
-三种音色模式：
-
-| 模式 | 说明 | 适用场景 |
-|------|------|----------|
-| `voicedesign` | 文本描述设计音色 | 主要角色（LLM 自动生成） |
-| `preset` | 预置音色 | 旁白、次要角色 |
-| `clone` | 音频克隆 | 需要特定声音的角色 |
-
-预置音色：冰糖(女)、茉莉(女)、苏打(男)、白桦(男)、Mia(女)、Chloe(女)、Milo(男)、Dean(男)
-
 ## CLI 参数
 
 ```
@@ -236,10 +247,10 @@ novel-to-audiobook/
 ├── epub_parser.py       # EPUB 解析器（按章切割）
 ├── parser.py            # 规则解析器（正则提取对话）
 ├── llm_parser.py        # LLM 解析器（大模型分析）
-├── voice_manager.py     # 角色-音色映射
-├── tts_engine.py        # MiMo TTS API 封装
-├── audio_merger.py      # 音频拼接与导出
-├── config.py            # 配置管理
+├── voice_manager.py     # 角色-音色映射（自动性别分配 + 轮换）
+├── tts_engine.py        # MiMo TTS API 封装（preset/voicedesign/clone）
+├── audio_merger.py      # 音频拼接与导出（FFmpeg）
+├── config.py            # 配置管理（LLMConfig/TTSConfig）
 ├── dotenv.py            # .env 加载器
 ├── .env                 # API Key 配置（不提交）
 ├── .env.example         # API Key 模板
@@ -247,3 +258,11 @@ novel-to-audiobook/
 ├── voices.yaml          # 示例音色配置
 └── README.md
 ```
+
+## 技术说明
+
+- **TTS 模型**: `mimo-v2.5-tts`（预置音色 + style_instruction 控制语气）
+- **LLM 模型**: `mimo-v2.5`（推理模型，需 streaming 模式，max_tokens ≥ 16000）
+- **音频格式**: 段落间静音 0.3-0.5s，段内句子间静音 0.15s
+- **分段清理**: 合成完成后自动删除临时 .wav 段文件，只保留最终拼接结果
+- **LLM 缓存**: 分析结果缓存到 `analysis/` 目录，重复运行不会重新调用 LLM

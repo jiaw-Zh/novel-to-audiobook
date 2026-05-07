@@ -257,6 +257,7 @@ def _synthesize_one_chapter(
     cache_dir: str,
     config: ProjectConfig,
     voices_path: str,
+    voice_hints: dict = None,
 ) -> tuple[int, str, bool]:
     """
     合成单个章节（供线程池调用）。
@@ -272,6 +273,12 @@ def _synthesize_one_chapter(
 
     # 每个线程独立创建实例（避免线程安全问题）
     voice_mgr = VoiceManager(voices_path)
+
+    # 合并 LLM 的 voice_hints
+    if voice_hints:
+        for name, hint in voice_hints.items():
+            voice_mgr.merge_voice_hint(name, hint)
+
     tts = TTSEngine(config.tts)
     merger = AudioMerger(
         sample_rate=config.tts.sample_rate,
@@ -368,6 +375,16 @@ def step_tts_synthesize(
     os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(cache_dir, exist_ok=True)
 
+    # 从 LLM 分析结果中提取 voice_hints
+    voice_hints = {}
+    for result in analysis_results.values():
+        for char in result.get("characters", []):
+            if char.get("name") and char.get("voice_hint"):
+                voice_hints[char["name"]] = char["voice_hint"]
+
+    if voice_hints:
+        logger.info(f"  LLM 音色提示: {', '.join(f'{k}({v})' for k, v in voice_hints.items())}")
+
     # 过滤需要合成的章节
     to_synthesize = []
     skipped = 0
@@ -398,7 +415,7 @@ def step_tts_synthesize(
         futures = {
             executor.submit(
                 _synthesize_one_chapter,
-                ch, analysis_results, audio_dir, cache_dir, config, voices_path,
+                ch, analysis_results, audio_dir, cache_dir, config, voices_path, voice_hints,
             ): ch
             for ch in to_synthesize
         }
@@ -432,12 +449,15 @@ def step_tts_synthesize(
 # ═══════════════════════════════════════════════════════════
 # 工具函数
 # ═══════════════════════════════════════════════════════════
-
 def _build_style(segment, voice_profile) -> str:
+    """构建风格指令：音色基础 + 情感 + 段落类型"""
     parts = []
-    if voice_profile.voice_prompt and voice_profile.mode == "voicedesign":
-        parts.append(voice_profile.voice_prompt)
 
+    # 音色基础描述（来自 voice_manager 的自动推断或 YAML 配置）
+    if voice_profile.style_instruction:
+        parts.append(voice_profile.style_instruction)
+
+    # 情感指令
     emotion_map = {
         "喜": "用欢快愉悦的语气说", "怒": "用愤怒激动的语气说",
         "哀": "用悲伤低沉的语气说", "惧": "用恐惧颤抖的语气说",
@@ -448,6 +468,7 @@ def _build_style(segment, voice_profile) -> str:
     if segment.emotion and segment.emotion in emotion_map:
         parts.append(emotion_map[segment.emotion])
 
+    # 段落类型
     if segment.type == SegmentType.NARRATION:
         parts.append("用叙述的语气朗读")
     elif segment.type == SegmentType.DIALOGUE:
