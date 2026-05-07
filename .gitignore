@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 环境
+.env
+*.env
+venv/
+.venv/
+
+# 输出目录
+output/
+audiobook/
+*.mp3
+*.wav
+*.m4b
+
+# 缓存
+.cache/
+*.cache
+.tts_progress.json
+analysis_cache.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# API Key
+voices_auto.yaml

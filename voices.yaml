@@ -1,0 +1,51 @@
+# 角色音色配置文件
+# 三种模式: voicedesign（文本设计）/ preset（预置音色）/ clone（音频克隆）
+
+default:
+  mode: voicedesign
+  voice_prompt: "成熟男性播音腔，语速适中，声音清晰沉稳"
+
+characters:
+  # ── 男性角色 ──
+  林风:
+    mode: voicedesign
+    voice_prompt: "年轻男性，20岁出头，声音清亮坚定，略带少年意气"
+    gender: male
+    age: young
+
+  萧云:
+    mode: voicedesign
+    voice_prompt: "中年男性，30多岁，声音低沉磁性，从容不迫，有种不怒自威的气场"
+    gender: male
+    age: middle
+
+  老祖:
+    mode: voicedesign
+    voice_prompt: "老年男性，80多岁，声音苍老沙哑，语速极慢，每句话都像是深思熟虑后才说出口"
+    gender: male
+    age: old
+
+  # ── 女性角色 ──
+  苏瑶:
+    mode: voicedesign
+    voice_prompt: "年轻女性，18岁左右，声线清甜如银铃，说话轻声细语，带着少女的娇憨"
+    gender: female
+    age: young
+
+  凤仙:
+    mode: voicedesign
+    voice_prompt: "成熟女性，28岁，声音妩媚妖娆，带着慵懒的磁性，说话慢条斯理"
+    gender: female
+    age: middle
+
+  # ── 使用预置音色的角色 ──
+  旁白:
+    mode: preset
+    voice_id: "白桦"
+    style_instruction: "用标准的播音腔朗读，语速适中，情感克制"
+
+  # ── 使用音频克隆的角色（需要提供参考音频）──
+  # 神秘人:
+  #   mode: clone
+  #   clone_audio_path: "voices/mysterious.wav"
+  #   style_instruction: "用低沉神秘的语气说"
