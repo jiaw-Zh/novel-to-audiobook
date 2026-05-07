@@ -19,6 +19,9 @@ audiobook/
 *.wav
 *.m4b
 
+# Web 数据
+web/data/
+
 # 缓存
 .cache/
 *.cache
