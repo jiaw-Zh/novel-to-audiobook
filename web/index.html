@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小说有声书 — MiMo TTS</title>
+<style>
+/* ── Reset & Tokens ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-0: #0c0c0e;
+  --bg-1: #141416;
+  --bg-2: #1c1c20;
+  --bg-3: #242429;
+  --bg-hover: #2a2a30;
+  --border: #2e2e35;
+  --border-light: #3a3a42;
+
+  --text-0: #f0f0f2;
+  --text-1: #c8c8ce;
+  --text-2: #8e8e96;
+  --text-3: #5c5c64;
+
+  --accent: #6c8cff;
+  --accent-dim: #6c8cff22;
+  --accent-hover: #8da6ff;
+  --green: #4ade80;
+  --green-dim: #4ade8022;
+  --orange: #fb923c;
+  --orange-dim: #fb923c22;
+  --red: #f87171;
+  --red-dim: #f8717122;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --font: -apple-system, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+
+  --sidebar-w: 280px;
+  --right-w: 340px;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg-0);
+  color: var(--text-0);
+  line-height: 1.6;
+  height: 100vh;
+  overflow: hidden;
+}
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, select, textarea { font-family: inherit; color: inherit; }
+
+/* ── Layout ─────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr var(--right-w);
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-logo {
+  width: 28px; height: 28px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px;
+}
+.header-title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+.header-subtitle { color: var(--text-2); font-size: 12px; margin-left: 4px; }
+
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-actions .badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.badge-chapters { background: var(--accent-dim); color: var(--accent); }
+.badge-chars { background: var(--green-dim); color: var(--green); }
+
+/* ── Sidebar (Chapter List) ─────────────────────────── */
+.sidebar {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.sidebar-header h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
+.sidebar-count { font-size: 11px; color: var(--text-3); }
+
+.sidebar-search {
+  margin: 0 12px 8px;
+  flex-shrink: 0;
+}
+.sidebar-search input {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-search input::placeholder { color: var(--text-3); }
+
+.chapter-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+}
+.chapter-list::-webkit-scrollbar { width: 4px; }
+.chapter-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .12s;
+  position: relative;
+}
+.chapter-item:hover { background: var(--bg-hover); }
+.chapter-item.active { background: var(--accent-dim); }
+.chapter-item.active .chapter-name { color: var(--accent); font-weight: 500; }
+
+.chapter-status {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-light);
+}
+.chapter-status.done { background: var(--green); }
+.chapter-status.processing { background: var(--orange); animation: pulse 1.2s infinite; }
+.chapter-status.error { background: var(--red); }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+
+.chapter-info { flex: 1; min-width: 0; }
+.chapter-name {
+  font-size: 13px;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chapter-meta {
+  font-size: 11px;
+  color: var(--text-3);
+  display: flex;
+  gap: 8px;
+  margin-top: 1px;
+}
+
+.sidebar-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+}
+.btn {
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all .12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { color: var(--text-1); }
+.btn-ghost:hover { background: var(--bg-hover); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+
+/* ── Main Content ───────────────────────────────────── */
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+
+/* Upload State */
+.upload-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+}
+.upload-icon {
+  width: 80px; height: 80px;
+  border: 2px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  color: var(--text-3);
+  transition: all .2s;
+}
+.upload-zone.dragover .upload-icon {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.upload-text { font-size: 15px; color: var(--text-2); }
+.upload-hint { font-size: 12px; color: var(--text-3); }
+
+/* Content Area (after upload) */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.content-area.hidden { display: none; }
+.upload-zone.hidden { display: none; }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.toolbar-left { display: flex; align-items: center; gap: 12px; }
+.toolbar-right { display: flex; align-items: center; gap: 8px; }
+
+.tab-bar { display: flex; gap: 2px; }
+.tab {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  transition: all .12s;
+}
+.tab:hover { color: var(--text-0); background: var(--bg-2); }
+.tab.active { color: var(--text-0); background: var(--bg-3); }
+
+/* Chapter Content */
+.chapter-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+.chapter-content::-webkit-scrollbar { width: 6px; }
+.chapter-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.chapter-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  letter-spacing: -.01em;
+}
+
+/* Paragraph styles */
+.para {
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  line-height: 1.8;
+  transition: background .1s;
+}
+.para:hover { background: var(--bg-2); }
+.para-narrator { color: var(--text-1); }
+.para-dialogue { color: var(--text-0); }
+.para-speaker {
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.speaker-陈新 { background: #6c8cff22; color: #6c8cff; }
+.speaker-刘民有 { background: #4ade8022; color: #4ade80; }
+.speaker-药农 { background: #fb923c22; color: #fb923c; }
+.speaker-宋闻贤 { background: #c084fc22; color: #c084fc; }
+.speaker-尹琬秋 { background: #f472b622; color: #f472b6; }
+.speaker-小翠 { background: #f9a8d422; color: #f9a8d4; }
+.speaker-旁白 { background: #52525233; color: var(--text-2); }
+
+/* Analysis View */
+.analysis-view { padding: 20px; }
+.analysis-view.hidden { display: none; }
+
+.analysis-section {
+  margin-bottom: 24px;
+}
+.analysis-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.char-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: border-color .15s;
+}
+.char-card:hover { border-color: var(--border-light); }
+.char-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.char-card-name .gender-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.gender-dot.male { background: var(--accent); }
+.gender-dot.female { background: #f472b6; }
+.gender-dot.unknown { background: var(--text-3); }
+
+.char-card-meta { font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+.char-card-voice { font-size: 12px; color: var(--text-3); }
+
+/* Stats Row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.stat-value { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.stat-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* Audio Preview */
+.audio-preview {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-top: 12px;
+}
+.audio-preview-title { font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
+.waveform {
+  height: 48px;
+  background: var(--bg-3);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.waveform-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  padding: 8px 12px;
+}
+.waveform-bar {
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  opacity: .6;
+  transition: opacity .1s;
+}
+.waveform-bar.played { opacity: 1; }
+
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.play-btn {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s;
+}
+.play-btn:hover { background: var(--accent-hover); }
+.play-btn svg { fill: #fff; }
+
+.audio-time { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+
+/* Progress Bar */
+.progress-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width .3s;
+}
+
+/* ── Right Panel (Voice Config) ─────────────────────── */
+.right-panel {
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.right-panel.hidden { display: none; }
+
+.panel-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-header h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-2);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+.panel-content::-webkit-scrollbar { width: 4px; }
+.panel-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.voice-item {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 8px;
+  transition: border-color .15s;
+}
+.voice-item:hover { border-color: var(--border-light); }
+
+.voice-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.voice-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.voice-item-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.voice-item-badge.preset { background: var(--accent-dim); color: var(--accent); }
+.voice-item-badge.voicedesign { background: var(--green-dim); color: var(--green); }
+
+.voice-item-form { display: flex; flex-direction: column; gap: 8px; }
+.form-row { display: flex; gap: 8px; align-items: center; }
+.form-label {
+  font-size: 11px;
+  color: var(--text-3);
+  width: 48px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.form-select, .form-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.form-select:focus, .form-input:focus { border-color: var(--accent); }
+.form-select option { background: var(--bg-3); }
+textarea.form-input {
+  resize: vertical;
+  min-height: 52px;
+  line-height: 1.5;
+}
+
+.voice-play-btn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all .12s;
+}
+.voice-play-btn:hover { background: var(--bg-hover); border-color: var(--border-light); color: var(--text-0); }
+
+/* Narrator card */
+.voice-item.narrator {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* Panel Footer */
+.panel-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn-full { width: 100%; justify-content: center; }
+
+/* ── Processing Overlay ─────────────────────────────── */
+.processing-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.processing-overlay.hidden { display: none; }
+.processing-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 40px;
+  min-width: 420px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.processing-card h3 { font-size: 18px; margin-bottom: 8px; }
+.processing-card p { font-size: 13px; color: var(--text-2); margin-bottom: 20px; }
+
+.processing-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+.processing-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.step-icon {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  background: var(--bg-3);
+  color: var(--text-3);
+}
+.step-icon.done { background: var(--green-dim); color: var(--green); }
+.step-icon.active { background: var(--accent-dim); color: var(--accent); animation: pulse 1.2s infinite; }
+.step-info { flex: 1; }
+.step-label { font-weight: 500; }
+.step-detail { font-size: 11px; color: var(--text-3); }
+
+.processing-progress {
+  margin-bottom: 16px;
+}
+.processing-progress .progress-bar-bg { height: 6px; }
+.processing-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .app { grid-template-columns: var(--sidebar-w) 1fr; }
+  .right-panel { display: none; }
+}
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ── Header ──────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-logo">书</div>
+      <span class="header-title">小说有声书</span>
+      <span class="header-subtitle">MiMo TTS</span>
+    </div>
+    <div class="header-actions">
+      <span class="badge badge-chapters" id="badge-chapters">577 章</span>
+      <span class="badge badge-chars" id="badge-chars">12 角色</span>
+      <button class="btn btn-ghost btn-sm" id="btn-settings">⚙ 设置</button>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ─────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h3>章节</h3>
+      <span class="sidebar-count" id="sidebar-count">577 / 577</span>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" placeholder="搜索章节…" id="chapter-search">
+    </div>
+    <div class="chapter-list" id="chapter-list">
+      <!-- Chapters populated by JS -->
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-primary btn-sm" id="btn-analyze-range">分析选中范围</button>
+      <button class="btn btn-ghost btn-sm" id="btn-select-all">全选</button>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ────────────────────────── -->
+  <main class="main">
+    <!-- Upload Zone (initial state) -->
+    <div class="upload-zone" id="upload-zone">
+      <div class="upload-icon" id="upload-icon">📖</div>
+      <div class="upload-text">拖拽 EPUB 或 TXT 文件到此处</div>
+      <div class="upload-hint">或点击选择文件</div>
+      <button class="btn btn-primary" id="btn-upload">选择文件</button>
+      <input type="file" id="file-input" accept=".epub,.txt" style="display:none">
+    </div>
+
+    <!-- Content Area (after upload) -->
+    <div class="content-area hidden" id="content-area">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="tab-bar">
+            <button class="tab active" data-tab="reader">📖 原文</button>
+            <button class="tab" data-tab="analysis">🔍 分析</button>
+            <button class="tab" data-tab="audio">🔊 音频</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-ghost btn-sm" id="btn-export">导出音频</button>
+        </div>
+      </div>
+
+      <!-- Reader Tab -->
+      <div class="chapter-content" id="reader-view">
+        <h2 class="chapter-title" id="chapter-title">第五章 第三节</h2>
+        <div id="paragraphs">
+          <!-- Paragraphs populated by JS -->
+        </div>
+      </div>
+
+      <!-- Analysis Tab -->
+      <div class="analysis-view hidden" id="analysis-view">
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value">112</div>
+            <div class="stat-label">段落</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">6</div>
+            <div class="stat-label">角色</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">3:42</div>
+            <div class="stat-label">预估时长</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">11K</div>
+            <div class="stat-label">Token</div>
+          </div>
+        </div>
+
+        <div class="analysis-section">
+          <h4>👥 角色列表</h4>
+          <div class="char-grid" id="char-grid">
+            <!-- Characters populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Tab -->
+      <div class="analysis-view hidden" id="audio-view">
+        <div class="audio-preview">
+          <div class="audio-preview-title">第五章 — 合成预览</div>
+          <div class="waveform" id="waveform">
+            <div class="waveform-bars" id="waveform-bars">
+              <!-- Bars generated by JS -->
+            </div>
+          </div>
+          <div class="audio-controls">
+            <button class="play-btn" id="play-btn">
+              <svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>
+            </button>
+            <span class="audio-time">0:00</span>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="audio-progress" style="width: 35%"></div>
+            </div>
+            <span class="audio-time">3:42</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Right Panel (Voice Config) ──────────── -->
+  <aside class="right-panel" id="right-panel">
+    <div class="panel-header">
+      <h3>音色配置</h3>
+    </div>
+    <div class="panel-content" id="voice-panel-content">
+      <!-- Voice items populated by JS -->
+    </div>
+    <div class="panel-footer">
+      <button class="btn btn-primary btn-full" id="btn-synthesize">🔊 合成本章</button>
+      <button class="btn btn-ghost btn-full btn-sm" id="btn-synthesize-all">批量合成 (全部)</button>
+    </div>
+  </aside>
+</div>
+
+<!-- ── Processing Overlay ────────────────────── -->
+<div class="processing-overlay hidden" id="processing-overlay">
+  <div class="processing-card">
+    <h3>正在处理…</h3>
+    <p>《晚明》柯山梦</p>
+    <div class="processing-steps">
+      <div class="processing-step">
+        <div class="step-icon done">✓</div>
+        <div class="step-info">
+          <div class="step-label">章节切割</div>
+          <div class="step-detail">577 章, 230 万字</div>
+        </div>
+      </div>
+      <div class="processing-step">
+        <div class="step-icon active">⟡</div>
+        <div class="step-info">
+          <div class="step-label">LLM 分析</div>
+          <div class="step-detail">第 5 / 577 章 · 5 线程并发</div>
+        </div>
+      </div>
+      <div class="processing-step">
+        <div class="step-icon">3</div>
+        <div class="step-info">
+          <div class="step-label">TTS 合成</div>
+          <div class="step-detail">等待中</div>
+        </div>
+      </div>
+    </div>
+    <div class="processing-progress">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: 12%"></div>
+      </div>
+      <div class="processing-progress-label">
+        <span>Step 2 / 3</span>
+        <span>12%</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="btn-cancel-process">取消</button>
+  </div>
+</div>
+
+<script>
+// ── Mock Data ──────────────────────────────────
+const mockChapters = Array.from({length: 20}, (_, i) => ({
+  index: i + 1,
+  title: `第${['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十'][i]}章`,
+  words: 3000 + Math.floor(Math.random() * 4000),
+  status: i < 3 ? 'done' : (i === 3 ? 'processing' : ''),
+}));
+
+const mockParagraphs = [
+  { speaker: null, text: "陈新和刘民有在药农家中歇息了一夜。第二天一早，天色刚亮，陈新便醒了。他看了看还在沉睡的刘民有，轻轻起身走到门外。" },
+  { speaker: null, text: "山间的清晨带着一股潮湿的草木气息，远处的山峦在薄雾中若隐若现。药农已经在院子里忙活了，正蹲在灶台前烧水。" },
+  { speaker: "陈新", text: "“老丈，早啊。”", emotion: "平静" },
+  { speaker: "药农", text: "“后生醒了？水快烧好了，等会儿喝口热水再走。”", emotion: "平和" },
+  { speaker: "陈新", text: "“多谢老丈收留。敢问这里离镇上还有多远？”", emotion: "感激" },
+  { speaker: "药农", text: "“顺着山路往下走，约莫七八里就到了。你们要是不赶路，在我这儿吃了早饭再走也不迟。”", emotion: "热情" },
+  { speaker: null, text: "陈新道了谢，回到屋里叫醒刘民有。刘民有揉着眼睛坐起来，一脸茫然。" },
+  { speaker: "刘民有", text: "“这么早？天还没亮透呢。”", emotion: "困倦" },
+  { speaker: "陈新", text: "“起来吧，吃了饭赶路。今天得到镇上找个落脚的地方。”", emotion: "从容" },
+  { speaker: "刘民有", text: "“这荒山野岭的，镇上能有什么营生？”", emotion: "忧虑" },
+  { speaker: "陈新", text: "“到了再说。总比在这山里强。”", emotion: "坚定" },
+  { speaker: null, text: "两人吃了药农准备的粗茶淡饭，刘民有从怀里摸出几个铜钱要给药农，药农摆手推辞了。" },
+  { speaker: "药农", text: "“我一个老头子，要钱做什么。你们年轻人出门在外不容易，留着路上用吧。”", emotion: "豁达" },
+  { speaker: "陈新", text: "“老丈大恩，我们记下了。日后若有缘，定当报答。”", emotion: "诚恳" },
+  { speaker: null, text: "辞别药农，两人沿着山路往下走。山风拂面，带着初秋的凉意。陈新走在前面，脚步轻快；刘民有跟在后面，不时回头望望药农的小屋。" },
+  { speaker: "刘民有", text: "“陈新，你说咱们到了镇上，第一件事做什么？”", emotion: "好奇" },
+  { speaker: "陈新", text: "“先找个地方住下，然后打听打听这附近的情况。看看有没有什么活计可以做。”", emotion: "沉稳" },
+  { speaker: "刘民有", text: "“我总觉得心里不踏实。咱们什么都没有，怎么安顿？”", emotion: "焦虑" },
+  { speaker: "陈新", text: "“有手有脚，饿不死。别想那么多，走一步看一步。”", emotion: "从容" },
+];
+
+const mockCharacters = [
+  { name: "陈新", gender: "male", age: "young", voice_hint: "年轻男性，声音从容淡定", voice_id: "白桦", style: "年轻男性，声音从容淡定，语速平稳" },
+  { name: "刘民有", gender: "male", age: "young", voice_hint: "年轻男性，声音紧张焦虑", voice_id: "苏打", style: "年轻男性，声音紧张焦虑，语速偏快" },
+  { name: "药农", gender: "male", age: "old", voice_hint: "苍老年迈，声音低沉沙哑", voice_id: "白桦", style: "苍老年迈，声音低沉沙哑，语速缓慢，朴实" },
+];
+
+const voicePresets = ["白桦", "苏打", "冰糖", "茉莉", "Mia", "Chloe", "Milo", "Dean"];
+
+// ── Render Functions ──────────────────────────
+function renderChapters() {
+  const list = document.getElementById('chapter-list');
+  list.innerHTML = mockChapters.map(ch => `
+    <div class="chapter-item ${ch.index === 5 ? 'active' : ''}" data-index="${ch.index}">
+      <div class="chapter-status ${ch.status}"></div>
+      <div class="chapter-info">
+        <div class="chapter-name">${ch.title}</div>
+        <div class="chapter-meta">
+          <span>${ch.words.toLocaleString()} 字</span>
+          ${ch.status === 'done' ? '<span style="color:var(--green)">✓</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderParagraphs() {
+  const container = document.getElementById('paragraphs');
+  container.innerHTML = mockParagraphs.map(p => {
+    if (p.speaker) {
+      return `<div class="para para-dialogue">
+        <span class="para-speaker speaker-${p.speaker}">${p.speaker}</span>${p.text}
+      </div>`;
+    }
+    return `<div class="para para-narrator">${p.text}</div>`;
+  }).join('');
+}
+
+function renderCharacters() {
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = mockCharacters.map(c => `
+    <div class="char-card">
+      <div class="char-card-name">
+        <span class="gender-dot ${c.gender}"></span>
+        ${c.name}
+      </div>
+      <div class="char-card-meta">${c.gender === 'male' ? '男' : '女'} · ${c.age === 'young' ? '青年' : c.age === 'old' ? '老年' : '中年'}</div>
+      <div class="char-card-voice">🎤 ${c.voice_id} · ${c.voice_hint}</div>
+    </div>
+  `).join('');
+}
+
+function renderVoicePanel() {
+  const container = document.getElementById('voice-panel-content');
+  const narrator = `
+    <div class="voice-item narrator">
+      <div class="voice-item-header">
+        <div class="voice-item-name">📖 旁白</div>
+      </div>
+      <div class="voice-item-form">
+        <div class="form-row">
+          <span class="form-label">音色</span>
+          <select class="form-select">
+            <option selected>白桦</option>
+            ${voicePresets.filter(v => v !== '白桦').map(v => `<option>${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <span class="form-label">风格</span>
+          <input class="form-input" value="标准播音腔朗读">
+        </div>
+      </div>
+    </div>
+  `;
+
+  const chars = mockCharacters.map(c => `
+    <div class="voice-item">
+      <div class="voice-item-header">
+        <div class="voice-item-name">
+          <span class="gender-dot ${c.gender}"></span>
+          ${c.name}
+        </div>
+        <span class="voice-item-badge preset">preset</span>
+      </div>
+      <div class="voice-item-form">
+        <div class="form-row">
+          <span class="form-label">音色</span>
+          <select class="form-select">
+            <option ${c.voice_id === '白桦' ? 'selected' : ''}>白桦</option>
+            <option ${c.voice_id === '苏打' ? 'selected' : ''}>苏打</option>
+            <option ${c.voice_id === '冰糖' ? 'selected' : ''}>冰糖</option>
+            <option ${c.voice_id === '茉莉' ? 'selected' : ''}>茉莉</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <span class="form-label">风格</span>
+          <textarea class="form-input">${c.style}</textarea>
+        </div>
+        <button class="voice-play-btn">▶ 试听</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.innerHTML = narrator + chars;
+}
+
+function renderWaveform() {
+  const bars = document.getElementById('waveform-bars');
+  const count = 80;
+  bars.innerHTML = Array.from({length: count}, (_, i) => {
+    const h = 8 + Math.random() * 32;
+    const played = i < count * 0.35;
+    return `<div class="waveform-bar ${played ? 'played' : ''}" style="height:${h}px"></div>`;
+  }).join('');
+}
+
+// ── Interactions ───────────────────────────────
+function initInteractions() {
+  // Chapter click
+  document.getElementById('chapter-list').addEventListener('click', e => {
+    const item = e.target.closest('.chapter-item');
+    if (!item) return;
+    document.querySelectorAll('.chapter-item').forEach(el => el.classList.remove('active'));
+    item.classList.add('active');
+  });
+
+  // Chapter search
+  document.getElementById('chapter-search').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.chapter-item').forEach(el => {
+      const name = el.querySelector('.chapter-name').textContent.toLowerCase();
+      el.style.display = name.includes(q) ? '' : 'none';
+    });
+  });
+
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const view = tab.dataset.tab;
+      document.getElementById('reader-view').classList.toggle('hidden', view !== 'reader');
+      document.getElementById('analysis-view').classList.toggle('hidden', view !== 'analysis');
+      document.getElementById('audio-view').classList.toggle('hidden', view !== 'audio');
+    });
+  });
+
+  // Upload
+  const uploadZone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('file-input');
+
+  document.getElementById('btn-upload').addEventListener('click', () => fileInput.click());
+
+  uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+  // Cancel processing
+  document.getElementById('btn-cancel-process').addEventListener('click', () => {
+    document.getElementById('processing-overlay').classList.add('hidden');
+  });
+
+  // Synthesize button
+  document.getElementById('btn-synthesize').addEventListener('click', () => {
+    document.getElementById('processing-overlay').classList.remove('hidden');
+  });
+
+  // Play button toggle
+  let playing = false;
+  document.getElementById('play-btn').addEventListener('click', () => {
+    playing = !playing;
+    const btn = document.getElementById('play-btn');
+    btn.innerHTML = playing
+      ? '<svg width="14" height="16" viewBox="0 0 14 16"><rect x="2" y="0" width="3" height="16"/><rect x="9" y="0" width="3" height="16"/></svg>'
+      : '<svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>';
+  });
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['epub', 'txt'].includes(ext)) {
+    alert('请上传 .epub 或 .txt 文件');
+    return;
+  }
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('content-area').classList.remove('hidden');
+}
+
+// ── Init ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderChapters();
+  renderParagraphs();
+  renderCharacters();
+  renderVoicePanel();
+  renderWaveform();
+  initInteractions();
+});
+</script>
+
+</body>
+</html>
