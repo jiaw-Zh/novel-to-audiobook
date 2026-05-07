@@ -110,6 +110,16 @@ python main.py novel.epub --skip-llm --voices output/voices_auto.yaml
 python main.py novel.epub --skip-llm --resume-from 50
 ```
 
+### 模式 4: 分析指定章节
+
+```bash
+# 只分析第 6-10 章（适合先验证效果再跑全量）
+python main.py novel.epub --llm-only --start-chapter 6 --end-chapter 10
+
+# 分析第 100 章到末尾
+python main.py novel.epub --llm-only --start-chapter 100
+```
+
 ## 音色与角色
 
 ### 自动音色分配策略
@@ -223,6 +233,8 @@ python main.py <novel> [选项]
   --llm-only               只切割 + 分析，不合成
   --skip-llm               跳过 LLM，用规则解析
   --resume-from N          从第 N 章恢复
+  --start-chapter N        起始章节编号 (默认: 1)
+  --end-chapter N          结束章节编号 (默认: 0 表示全部)
 
 并发控制:
   --llm-workers N          LLM 分析并发数 (默认: 5)

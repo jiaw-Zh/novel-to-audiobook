@@ -537,6 +537,8 @@ def main():
     flow_group.add_argument("--llm-only", action="store_true", help="只切割 + 分析，不合成")
     flow_group.add_argument("--skip-llm", action="store_true", help="跳过 LLM，用规则解析")
     flow_group.add_argument("--resume-from", type=int, default=0, help="从第 N 章恢复")
+    flow_group.add_argument("--start-chapter", type=int, default=1, help="起始章节编号 (默认: 1)")
+    flow_group.add_argument("--end-chapter", type=int, default=0, help="结束章节编号 (默认: 0 表示全部)")
 
     # 并发控制
     perf_group = parser.add_argument_group("并发控制")
@@ -587,6 +589,18 @@ def main():
     chapters = step_parse_novel(args.novel, output_dir)
     total_words = sum(ch["word_count"] for ch in chapters)
     logger.info(f"\n✅ 切割完成: {len(chapters)} 章, {total_words:,} 字")
+
+    # ── 章节范围过滤 ──────────────────────────────────────
+    start = max(args.start_chapter, 1)
+    end = args.end_chapter if args.end_chapter > 0 else len(chapters)
+
+    if start > 1 or end < len(chapters):
+        chapters = [ch for ch in chapters if start <= ch["index"] <= end]
+        logger.info(f"📌 章节范围: 第 {start} ~ {end} 章, 共 {len(chapters)} 章")
+
+    if not chapters:
+        logger.error(f"指定范围内无章节: {start}-{end}")
+        sys.exit(1)
 
     # ── Step 2: LLM 分析 ──────────────────────────────────
     analysis_results = {}
