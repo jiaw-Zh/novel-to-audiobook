@@ -89,6 +89,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 }
 .header-title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
 .header-subtitle { color: var(--text-2); font-size: 12px; margin-left: 4px; }
+.header-filename { color: var(--text-2); font-size: 12px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--border); }
 
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .header-actions .badge {
@@ -164,7 +165,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
   background: var(--border-light);
 }
 .chapter-status.done { background: var(--green); }
-.chapter-status.processing { background: var(--orange); animation: pulse 1.2s infinite; }
+.chapter-status.analyzed { background: var(--accent); }
+.chapter-status.analyzing, .chapter-status.synthesizing { background: var(--orange); animation: pulse 1.2s infinite; }
 .chapter-status.error { background: var(--red); }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
@@ -204,6 +206,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-ghost { color: var(--text-1); }
 .btn-ghost:hover { background: var(--bg-hover); }
 .btn-sm { padding: 5px 10px; font-size: 11px; }
@@ -225,7 +228,9 @@ input, select, textarea { font-family: inherit; color: inherit; }
   justify-content: center;
   gap: 16px;
   padding: 40px;
+  transition: all .2s;
 }
+.upload-zone.hidden { display: none; }
 .upload-icon {
   width: 80px; height: 80px;
   border: 2px dashed var(--border-light);
@@ -251,7 +256,6 @@ input, select, textarea { font-family: inherit; color: inherit; }
   overflow: hidden;
 }
 .content-area.hidden { display: none; }
-.upload-zone.hidden { display: none; }
 
 /* Toolbar */
 .toolbar {
@@ -321,12 +325,10 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .speaker-旁白 { background: #52525233; color: var(--text-2); }
 
 /* Analysis View */
-.analysis-view { padding: 20px; }
+.analysis-view { padding: 20px; overflow-y: auto; flex: 1; }
 .analysis-view.hidden { display: none; }
 
-.analysis-section {
-  margin-bottom: 24px;
-}
+.analysis-section { margin-bottom: 24px; }
 .analysis-section h4 {
   font-size: 13px;
   font-weight: 600;
@@ -393,7 +395,6 @@ input, select, textarea { font-family: inherit; color: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 16px 20px;
-  margin-top: 12px;
 }
 .audio-preview-title { font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
 .waveform {
@@ -440,7 +441,6 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 .audio-time { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
 
-/* Progress Bar */
 .progress-bar-bg {
   flex: 1;
   height: 4px;
@@ -562,13 +562,11 @@ textarea.form-input {
 }
 .voice-play-btn:hover { background: var(--bg-hover); border-color: var(--border-light); color: var(--text-0); }
 
-/* Narrator card */
 .voice-item.narrator {
   border-color: var(--accent);
   background: var(--accent-dim);
 }
 
-/* Panel Footer */
 .panel-footer {
   padding: 12px;
   border-top: 1px solid var(--border);
@@ -634,9 +632,7 @@ textarea.form-input {
 .step-label { font-weight: 500; }
 .step-detail { font-size: 11px; color: var(--text-3); }
 
-.processing-progress {
-  margin-bottom: 16px;
-}
+.processing-progress { margin-bottom: 16px; }
 .processing-progress .progress-bar-bg { height: 6px; }
 .processing-progress-label {
   display: flex;
@@ -645,6 +641,42 @@ textarea.form-input {
   color: var(--text-3);
   margin-top: 6px;
 }
+
+/* ── Toast ──────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  padding: 10px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  box-shadow: var(--shadow-md);
+  animation: slideIn .2s ease;
+}
+.toast.success { border-color: var(--green); }
+.toast.error { border-color: var(--red); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* ── Empty State ────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  color: var(--text-3);
+}
+.empty-state-icon { font-size: 32px; margin-bottom: 8px; }
+.empty-state-text { font-size: 14px; }
 
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 1100px) {
@@ -666,10 +698,11 @@ textarea.form-input {
       <div class="header-logo">书</div>
       <span class="header-title">小说有声书</span>
       <span class="header-subtitle">MiMo TTS</span>
+      <span class="header-filename" id="header-filename" style="display:none"></span>
     </div>
     <div class="header-actions">
-      <span class="badge badge-chapters" id="badge-chapters">577 章</span>
-      <span class="badge badge-chars" id="badge-chars">12 角色</span>
+      <span class="badge badge-chapters" id="badge-chapters" style="display:none">0 章</span>
+      <span class="badge badge-chars" id="badge-chars" style="display:none">0 角色</span>
       <button class="btn btn-ghost btn-sm" id="btn-settings">⚙ 设置</button>
     </div>
   </header>
@@ -678,7 +711,7 @@ textarea.form-input {
   <aside class="sidebar">
     <div class="sidebar-header">
       <h3>章节</h3>
-      <span class="sidebar-count" id="sidebar-count">577 / 577</span>
+      <span class="sidebar-count" id="sidebar-count">0 / 0</span>
     </div>
     <div class="sidebar-search">
       <input type="text" placeholder="搜索章节…" id="chapter-search">
@@ -687,8 +720,8 @@ textarea.form-input {
       <!-- Chapters populated by JS -->
     </div>
     <div class="sidebar-footer">
-      <button class="btn btn-primary btn-sm" id="btn-analyze-range">分析选中范围</button>
-      <button class="btn btn-ghost btn-sm" id="btn-select-all">全选</button>
+      <button class="btn btn-primary btn-sm" id="btn-analyze" disabled>LLM 分析</button>
+      <button class="btn btn-ghost btn-sm" id="btn-synthesize-all" disabled>合成全部</button>
     </div>
   </aside>
 
@@ -720,59 +753,52 @@ textarea.form-input {
 
       <!-- Reader Tab -->
       <div class="chapter-content" id="reader-view">
-        <h2 class="chapter-title" id="chapter-title">第五章 第三节</h2>
-        <div id="paragraphs">
-          <!-- Paragraphs populated by JS -->
-        </div>
+        <h2 class="chapter-title" id="chapter-title">选择章节开始阅读</h2>
+        <div id="paragraphs"></div>
       </div>
 
       <!-- Analysis Tab -->
       <div class="analysis-view hidden" id="analysis-view">
-        <div class="stats-row">
+        <div class="stats-row" id="stats-row">
           <div class="stat-card">
-            <div class="stat-value">112</div>
+            <div class="stat-value" id="stat-paragraphs">-</div>
             <div class="stat-label">段落</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">6</div>
+            <div class="stat-value" id="stat-characters">-</div>
             <div class="stat-label">角色</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">3:42</div>
+            <div class="stat-value" id="stat-duration">-</div>
             <div class="stat-label">预估时长</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">11K</div>
+            <div class="stat-value" id="stat-tokens">-</div>
             <div class="stat-label">Token</div>
           </div>
         </div>
-
         <div class="analysis-section">
           <h4>👥 角色列表</h4>
-          <div class="char-grid" id="char-grid">
-            <!-- Characters populated by JS -->
-          </div>
+          <div class="char-grid" id="char-grid"></div>
         </div>
       </div>
 
       <!-- Audio Tab -->
       <div class="analysis-view hidden" id="audio-view">
         <div class="audio-preview">
-          <div class="audio-preview-title">第五章 — 合成预览</div>
+          <div class="audio-preview-title" id="audio-title">选择已合成的章节播放</div>
           <div class="waveform" id="waveform">
-            <div class="waveform-bars" id="waveform-bars">
-              <!-- Bars generated by JS -->
-            </div>
+            <div class="waveform-bars" id="waveform-bars"></div>
           </div>
           <div class="audio-controls">
             <button class="play-btn" id="play-btn">
               <svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>
             </button>
-            <span class="audio-time">0:00</span>
+            <span class="audio-time" id="audio-current">0:00</span>
             <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="audio-progress" style="width: 35%"></div>
+              <div class="progress-bar-fill" id="audio-progress" style="width: 0%"></div>
             </div>
-            <span class="audio-time">3:42</span>
+            <span class="audio-time" id="audio-total">0:00</span>
           </div>
         </div>
       </div>
@@ -785,11 +811,14 @@ textarea.form-input {
       <h3>音色配置</h3>
     </div>
     <div class="panel-content" id="voice-panel-content">
-      <!-- Voice items populated by JS -->
+      <div class="empty-state">
+        <div class="empty-state-icon">🎤</div>
+        <div class="empty-state-text">上传文件并分析后可配置音色</div>
+      </div>
     </div>
     <div class="panel-footer">
-      <button class="btn btn-primary btn-full" id="btn-synthesize">🔊 合成本章</button>
-      <button class="btn btn-ghost btn-full btn-sm" id="btn-synthesize-all">批量合成 (全部)</button>
+      <button class="btn btn-primary btn-full" id="btn-synthesize" disabled>🔊 合成本章</button>
+      <button class="btn btn-ghost btn-full btn-sm" id="btn-save-voices">保存音色配置</button>
     </div>
   </aside>
 </div>
@@ -797,208 +826,399 @@ textarea.form-input {
 <!-- ── Processing Overlay ────────────────────── -->
 <div class="processing-overlay hidden" id="processing-overlay">
   <div class="processing-card">
-    <h3>正在处理…</h3>
-    <p>《晚明》柯山梦</p>
-    <div class="processing-steps">
-      <div class="processing-step">
-        <div class="step-icon done">✓</div>
-        <div class="step-info">
-          <div class="step-label">章节切割</div>
-          <div class="step-detail">577 章, 230 万字</div>
-        </div>
-      </div>
-      <div class="processing-step">
-        <div class="step-icon active">⟡</div>
-        <div class="step-info">
-          <div class="step-label">LLM 分析</div>
-          <div class="step-detail">第 5 / 577 章 · 5 线程并发</div>
-        </div>
-      </div>
-      <div class="processing-step">
-        <div class="step-icon">3</div>
-        <div class="step-info">
-          <div class="step-label">TTS 合成</div>
-          <div class="step-detail">等待中</div>
-        </div>
-      </div>
-    </div>
+    <h3 id="processing-title">正在处理…</h3>
+    <p id="processing-subtitle">请稍候</p>
+    <div class="processing-steps" id="processing-steps"></div>
     <div class="processing-progress">
       <div class="progress-bar-bg">
-        <div class="progress-bar-fill" style="width: 12%"></div>
+        <div class="progress-bar-fill" id="processing-progress-bar" style="width: 0%"></div>
       </div>
       <div class="processing-progress-label">
-        <span>Step 2 / 3</span>
-        <span>12%</span>
+        <span id="processing-step-label">准备中</span>
+        <span id="processing-percent">0%</span>
       </div>
     </div>
     <button class="btn btn-ghost" id="btn-cancel-process">取消</button>
   </div>
 </div>
 
+<!-- ── Toast Container ───────────────────────── -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ── Audio Player (hidden) ─────────────────── -->
+<audio id="audio-player"></audio>
+
 <script>
-// ── Mock Data ──────────────────────────────────
-const mockChapters = Array.from({length: 20}, (_, i) => ({
-  index: i + 1,
-  title: `第${['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十'][i]}章`,
-  words: 3000 + Math.floor(Math.random() * 4000),
-  status: i < 3 ? 'done' : (i === 3 ? 'processing' : ''),
-}));
+// ── API Client ────────────────────────────────
+const API_BASE = window.location.origin;
 
-const mockParagraphs = [
-  { speaker: null, text: "陈新和刘民有在药农家中歇息了一夜。第二天一早，天色刚亮，陈新便醒了。他看了看还在沉睡的刘民有，轻轻起身走到门外。" },
-  { speaker: null, text: "山间的清晨带着一股潮湿的草木气息，远处的山峦在薄雾中若隐若现。药农已经在院子里忙活了，正蹲在灶台前烧水。" },
-  { speaker: "陈新", text: "“老丈，早啊。”", emotion: "平静" },
-  { speaker: "药农", text: "“后生醒了？水快烧好了，等会儿喝口热水再走。”", emotion: "平和" },
-  { speaker: "陈新", text: "“多谢老丈收留。敢问这里离镇上还有多远？”", emotion: "感激" },
-  { speaker: "药农", text: "“顺着山路往下走，约莫七八里就到了。你们要是不赶路，在我这儿吃了早饭再走也不迟。”", emotion: "热情" },
-  { speaker: null, text: "陈新道了谢，回到屋里叫醒刘民有。刘民有揉着眼睛坐起来，一脸茫然。" },
-  { speaker: "刘民有", text: "“这么早？天还没亮透呢。”", emotion: "困倦" },
-  { speaker: "陈新", text: "“起来吧，吃了饭赶路。今天得到镇上找个落脚的地方。”", emotion: "从容" },
-  { speaker: "刘民有", text: "“这荒山野岭的，镇上能有什么营生？”", emotion: "忧虑" },
-  { speaker: "陈新", text: "“到了再说。总比在这山里强。”", emotion: "坚定" },
-  { speaker: null, text: "两人吃了药农准备的粗茶淡饭，刘民有从怀里摸出几个铜钱要给药农，药农摆手推辞了。" },
-  { speaker: "药农", text: "“我一个老头子，要钱做什么。你们年轻人出门在外不容易，留着路上用吧。”", emotion: "豁达" },
-  { speaker: "陈新", text: "“老丈大恩，我们记下了。日后若有缘，定当报答。”", emotion: "诚恳" },
-  { speaker: null, text: "辞别药农，两人沿着山路往下走。山风拂面，带着初秋的凉意。陈新走在前面，脚步轻快；刘民有跟在后面，不时回头望望药农的小屋。" },
-  { speaker: "刘民有", text: "“陈新，你说咱们到了镇上，第一件事做什么？”", emotion: "好奇" },
-  { speaker: "陈新", text: "“先找个地方住下，然后打听打听这附近的情况。看看有没有什么活计可以做。”", emotion: "沉稳" },
-  { speaker: "刘民有", text: "“我总觉得心里不踏实。咱们什么都没有，怎么安顿？”", emotion: "焦虑" },
-  { speaker: "陈新", text: "“有手有脚，饿不死。别想那么多，走一步看一步。”", emotion: "从容" },
-];
+const api = {
+  async upload(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
 
-const mockCharacters = [
-  { name: "陈新", gender: "male", age: "young", voice_hint: "年轻男性，声音从容淡定", voice_id: "白桦", style: "年轻男性，声音从容淡定，语速平稳" },
-  { name: "刘民有", gender: "male", age: "young", voice_hint: "年轻男性，声音紧张焦虑", voice_id: "苏打", style: "年轻男性，声音紧张焦虑，语速偏快" },
-  { name: "药农", gender: "male", age: "old", voice_hint: "苍老年迈，声音低沉沙哑", voice_id: "白桦", style: "苍老年迈，声音低沉沙哑，语速缓慢，朴实" },
-];
+  async getStatus() {
+    const res = await fetch(`${API_BASE}/api/status`);
+    return res.json();
+  },
 
-const voicePresets = ["白桦", "苏打", "冰糖", "茉莉", "Mia", "Chloe", "Milo", "Dean"];
+  async getChapters(projectId) {
+    const res = await fetch(`${API_BASE}/api/chapters?project_id=${projectId}`);
+    return res.json();
+  },
+
+  async getChapter(projectId, chapterId) {
+    const res = await fetch(`${API_BASE}/api/chapters/${chapterId}?project_id=${projectId}`);
+    return res.json();
+  },
+
+  async analyze(projectIds, workers = 5) {
+    const res = await fetch(`${API_BASE}/api/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chapter_ids: projectIds, llm_workers: workers })
+    });
+    return res.json();
+  },
+
+  async synthesize(projectIds, workers = 3) {
+    const res = await fetch(`${API_BASE}/api/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chapter_ids: projectIds, tts_workers: workers })
+    });
+    return res.json();
+  },
+
+  async getTaskStatus(taskId) {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}`);
+    return res.json();
+  },
+
+  async getCharacters(projectId) {
+    const res = await fetch(`${API_BASE}/api/characters?project_id=${projectId}`);
+    return res.json();
+  },
+
+  async getVoices(projectId) {
+    const res = await fetch(`${API_BASE}/api/voices?project_id=${projectId}`);
+    return res.json();
+  },
+
+  async updateVoices(projectId, voices) {
+    const res = await fetch(`${API_BASE}/api/voices?project_id=${projectId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(voices)
+    });
+    return res.json();
+  },
+
+  getAudioUrl(projectId, chapterId) {
+    return `${API_BASE}/api/audio/${chapterId}?project_id=${projectId}`;
+  },
+
+  getExportUrl(projectId) {
+    return `${API_BASE}/api/export?project_id=${projectId}`;
+  }
+};
+
+// ── State ─────────────────────────────────────
+const state = {
+  projectId: null,
+  filename: null,
+  chapters: [],
+  currentChapter: null,
+  characters: [],
+  voices: null,
+  audioPlaying: false,
+};
+
+// ── Toast ─────────────────────────────────────
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
 
 // ── Render Functions ──────────────────────────
 function renderChapters() {
   const list = document.getElementById('chapter-list');
-  list.innerHTML = mockChapters.map(ch => `
-    <div class="chapter-item ${ch.index === 5 ? 'active' : ''}" data-index="${ch.index}">
+  const query = document.getElementById('chapter-search').value.toLowerCase();
+
+  const filtered = state.chapters.filter(ch =>
+    ch.title.toLowerCase().includes(query) || ch.id.toString().includes(query)
+  );
+
+  list.innerHTML = filtered.map(ch => `
+    <div class="chapter-item ${state.currentChapter?.id === ch.id ? 'active' : ''}" data-id="${ch.id}">
       <div class="chapter-status ${ch.status}"></div>
       <div class="chapter-info">
         <div class="chapter-name">${ch.title}</div>
         <div class="chapter-meta">
-          <span>${ch.words.toLocaleString()} 字</span>
-          ${ch.status === 'done' ? '<span style="color:var(--green)">✓</span>' : ''}
+          <span>${ch.word_count.toLocaleString()} 字</span>
+          ${ch.status === 'done' ? '<span style="color:var(--green)">✓ 已合成</span>' :
+            ch.status === 'analyzed' ? '<span style="color:var(--accent)">已分析</span>' :
+            ch.status === 'error' ? '<span style="color:var(--red)">错误</span>' : ''}
         </div>
       </div>
     </div>
   `).join('');
+
+  // Update counts
+  const total = state.chapters.length;
+  const done = state.chapters.filter(ch => ch.status === 'done').length;
+  document.getElementById('sidebar-count').textContent = `${done} / ${total}`;
+  document.getElementById('badge-chapters').textContent = `${total} 章`;
+  document.getElementById('badge-chapters').style.display = '';
+
+  // Update buttons
+  const hasPending = state.chapters.some(ch => ch.status === 'pending');
+  const hasAnalysis = state.chapters.some(ch => ch.has_analysis);
+  document.getElementById('btn-analyze').disabled = !hasPending;
+  document.getElementById('btn-synthesize-all').disabled = !hasAnalysis;
 }
 
-function renderParagraphs() {
-  const container = document.getElementById('paragraphs');
-  container.innerHTML = mockParagraphs.map(p => {
-    if (p.speaker) {
-      return `<div class="para para-dialogue">
-        <span class="para-speaker speaker-${p.speaker}">${p.speaker}</span>${p.text}
-      </div>`;
+async function loadChapterContent(chapterId) {
+  if (!state.projectId) return;
+
+  try {
+    const data = await api.getChapter(state.projectId, chapterId);
+    const ch = state.chapters.find(c => c.id === chapterId);
+    state.currentChapter = ch;
+
+    // Render paragraphs
+    renderChapterText(data);
+
+    // Render analysis if available
+    if (data.analysis) {
+      renderAnalysis(data.analysis);
+      renderVoicePanel(data.analysis);
     }
-    return `<div class="para para-narrator">${p.text}</div>`;
-  }).join('');
+
+    renderChapters();
+  } catch (e) {
+    showToast('加载章节失败: ' + e.message, 'error');
+  }
 }
 
-function renderCharacters() {
+function renderChapterText(data) {
+  const title = document.getElementById('chapter-title');
+  const container = document.getElementById('paragraphs');
+
+  title.textContent = state.currentChapter?.title || `第 ${data.id} 章`;
+
+  if (data.analysis && data.analysis.paragraphs) {
+    container.innerHTML = data.analysis.paragraphs.map(p => {
+      if (p.speaker) {
+        return `<div class="para para-dialogue">
+          <span class="para-speaker speaker-${p.speaker}">${p.speaker}</span>${p.text}
+        </div>`;
+      }
+      return `<div class="para para-narrator">${p.text}</div>`;
+    }).join('');
+  } else {
+    // 显示原始文本
+    const lines = data.content.split('\n').filter(l => l.trim());
+    container.innerHTML = lines.map(line =>
+      `<div class="para para-narrator">${line}</div>`
+    ).join('');
+  }
+}
+
+function renderAnalysis(analysis) {
+  const paragraphs = analysis.paragraphs || [];
+  const characters = analysis.characters || [];
+
+  document.getElementById('stat-paragraphs').textContent = paragraphs.length;
+  document.getElementById('stat-characters').textContent = characters.length;
+
+  // Estimate duration (roughly 200 chars per minute)
+  const totalChars = paragraphs.reduce((sum, p) => sum + (p.text?.length || 0), 0);
+  const minutes = Math.floor(totalChars / 200);
+  const seconds = Math.floor((totalChars % 200) / 200 * 60);
+  document.getElementById('stat-duration').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+  // Render character grid
   const grid = document.getElementById('char-grid');
-  grid.innerHTML = mockCharacters.map(c => `
-    <div class="char-card">
+  grid.innerHTML = characters.map(c => {
+    const genderClass = c.gender === 'male' ? 'male' : c.gender === 'female' ? 'female' : 'unknown';
+    const genderLabel = c.gender === 'male' ? '男' : c.gender === 'female' ? '女' : '未知';
+    const ageLabel = c.age === 'young' ? '青年' : c.age === 'old' ? '老年' : c.age === 'middle' ? '中年' : '未知';
+    return `<div class="char-card">
       <div class="char-card-name">
-        <span class="gender-dot ${c.gender}"></span>
+        <span class="gender-dot ${genderClass}"></span>
         ${c.name}
       </div>
-      <div class="char-card-meta">${c.gender === 'male' ? '男' : '女'} · ${c.age === 'young' ? '青年' : c.age === 'old' ? '老年' : '中年'}</div>
-      <div class="char-card-voice">🎤 ${c.voice_id} · ${c.voice_hint}</div>
-    </div>
-  `).join('');
+      <div class="char-card-meta">${genderLabel} · ${ageLabel}</div>
+      <div class="char-card-voice">🎤 ${c.voice_hint || '默认'}</div>
+    </div>`;
+  }).join('');
+
+  // Update global characters
+  for (const c of characters) {
+    if (!state.characters.find(sc => sc.name === c.name)) {
+      state.characters.push(c);
+    }
+  }
+  document.getElementById('badge-chars').textContent = `${state.characters.length} 角色`;
+  document.getElementById('badge-chars').style.display = '';
 }
 
-function renderVoicePanel() {
+function renderVoicePanel(analysis) {
   const container = document.getElementById('voice-panel-content');
-  const narrator = `
-    <div class="voice-item narrator">
-      <div class="voice-item-header">
-        <div class="voice-item-name">📖 旁白</div>
+  const voices = state.voices || { default: { mode: 'preset', voice_id: '白桦', style_instruction: '标准播音腔朗读' }, characters: {} };
+
+  const voicePresets = ["白桦", "苏打", "冰糖", "茉莉", "Mia", "Chloe", "Milo", "Dean"];
+
+  // Narrator
+  const defaultVoice = voices.default || {};
+  let html = `<div class="voice-item narrator">
+    <div class="voice-item-header">
+      <div class="voice-item-name">📖 旁白</div>
+    </div>
+    <div class="voice-item-form">
+      <div class="form-row">
+        <span class="form-label">音色</span>
+        <select class="form-select" data-role="default" data-field="voice_id">
+          ${voicePresets.map(v => `<option ${v === defaultVoice.voice_id ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
       </div>
-      <div class="voice-item-form">
-        <div class="form-row">
-          <span class="form-label">音色</span>
-          <select class="form-select">
-            <option selected>白桦</option>
-            ${voicePresets.filter(v => v !== '白桦').map(v => `<option>${v}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-row">
-          <span class="form-label">风格</span>
-          <input class="form-input" value="标准播音腔朗读">
-        </div>
+      <div class="form-row">
+        <span class="form-label">风格</span>
+        <input class="form-input" data-role="default" data-field="style_instruction" value="${defaultVoice.style_instruction || ''}">
       </div>
     </div>
-  `;
+  </div>`;
 
-  const chars = mockCharacters.map(c => `
-    <div class="voice-item">
+  // Characters
+  const characters = analysis?.characters || state.characters;
+  for (const c of characters) {
+    const charVoice = voices.characters?.[c.name] || {};
+    const genderClass = c.gender === 'male' ? 'male' : c.gender === 'female' ? 'female' : 'unknown';
+
+    html += `<div class="voice-item">
       <div class="voice-item-header">
         <div class="voice-item-name">
-          <span class="gender-dot ${c.gender}"></span>
+          <span class="gender-dot ${genderClass}"></span>
           ${c.name}
         </div>
-        <span class="voice-item-badge preset">preset</span>
+        <span class="voice-item-badge ${charVoice.mode || 'preset'}">${charVoice.mode || 'preset'}</span>
       </div>
       <div class="voice-item-form">
         <div class="form-row">
           <span class="form-label">音色</span>
-          <select class="form-select">
-            <option ${c.voice_id === '白桦' ? 'selected' : ''}>白桦</option>
-            <option ${c.voice_id === '苏打' ? 'selected' : ''}>苏打</option>
-            <option ${c.voice_id === '冰糖' ? 'selected' : ''}>冰糖</option>
-            <option ${c.voice_id === '茉莉' ? 'selected' : ''}>茉莉</option>
+          <select class="form-select" data-role="char" data-name="${c.name}" data-field="voice_id">
+            ${voicePresets.map(v => `<option ${v === (charVoice.voice_id || '白桦') ? 'selected' : ''}>${v}</option>`).join('')}
           </select>
         </div>
         <div class="form-row">
           <span class="form-label">风格</span>
-          <textarea class="form-input">${c.style}</textarea>
+          <textarea class="form-input" data-role="char" data-name="${c.name}" data-field="style_instruction">${charVoice.style_instruction || c.voice_hint || ''}</textarea>
         </div>
-        <button class="voice-play-btn">▶ 试听</button>
+        <button class="voice-play-btn" onclick="previewVoice('${c.name}')">▶ 试听</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }
 
-  container.innerHTML = narrator + chars;
+  container.innerHTML = html;
+  document.getElementById('btn-synthesize').disabled = false;
 }
 
-function renderWaveform() {
-  const bars = document.getElementById('waveform-bars');
-  const count = 80;
-  bars.innerHTML = Array.from({length: count}, (_, i) => {
-    const h = 8 + Math.random() * 32;
-    const played = i < count * 0.35;
-    return `<div class="waveform-bar ${played ? 'played' : ''}" style="height:${h}px"></div>`;
-  }).join('');
+// ── Task Polling ──────────────────────────────
+async function pollTask(taskId, type) {
+  const overlay = document.getElementById('processing-overlay');
+  const progressBar = document.getElementById('processing-progress-bar');
+  const stepLabel = document.getElementById('processing-step-label');
+  const percentLabel = document.getElementById('processing-percent');
+
+  overlay.classList.remove('hidden');
+  document.getElementById('processing-title').textContent = type === 'analyze' ? '正在 LLM 分析…' : '正在 TTS 合成…';
+  document.getElementById('processing-subtitle').textContent = state.filename || '';
+
+  const poll = setInterval(async () => {
+    try {
+      const task = await api.getTaskStatus(taskId);
+      const percent = task.total > 0 ? Math.round(task.progress / task.total * 100) : 0;
+      progressBar.style.width = percent + '%';
+      percentLabel.textContent = percent + '%';
+      stepLabel.textContent = `${task.progress} / ${task.total}`;
+
+      if (task.status === 'completed') {
+        clearInterval(poll);
+        overlay.classList.add('hidden');
+        showToast(type === 'analyze' ? '分析完成！' : '合成完成！', 'success');
+        await refreshChapters();
+      }
+    } catch (e) {
+      clearInterval(poll);
+      overlay.classList.add('hidden');
+      showToast('任务查询失败', 'error');
+    }
+  }, 1000);
 }
 
-// ── Interactions ───────────────────────────────
-function initInteractions() {
+// ── Data Loading ──────────────────────────────
+async function refreshChapters() {
+  if (!state.projectId) return;
+  try {
+    const data = await api.getChapters(state.projectId);
+    state.chapters = data.chapters;
+    renderChapters();
+  } catch (e) {
+    showToast('刷新章节失败', 'error');
+  }
+}
+
+async function loadVoices() {
+  if (!state.projectId) return;
+  try {
+    const data = await api.getVoices(state.projectId);
+    state.voices = data.voices;
+  } catch (e) {
+    // Ignore - will use defaults
+  }
+}
+
+// ── Event Handlers ────────────────────────────
+function initEventHandlers() {
+  // Upload
+  const uploadZone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('file-input');
+
+  document.getElementById('btn-upload').addEventListener('click', () => fileInput.click());
+
+  uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', async e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    await handleUpload(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', async e => {
+    if (e.target.files[0]) await handleUpload(e.target.files[0]);
+  });
+
   // Chapter click
   document.getElementById('chapter-list').addEventListener('click', e => {
     const item = e.target.closest('.chapter-item');
     if (!item) return;
-    document.querySelectorAll('.chapter-item').forEach(el => el.classList.remove('active'));
-    item.classList.add('active');
+    const id = parseInt(item.dataset.id);
+    loadChapterContent(id);
   });
 
   // Chapter search
-  document.getElementById('chapter-search').addEventListener('input', e => {
-    const q = e.target.value.toLowerCase();
-    document.querySelectorAll('.chapter-item').forEach(el => {
-      const name = el.querySelector('.chapter-name').textContent.toLowerCase();
-      el.style.display = name.includes(q) ? '' : 'none';
-    });
-  });
+  document.getElementById('chapter-search').addEventListener('input', renderChapters);
 
   // Tab switching
   document.querySelectorAll('.tab').forEach(tab => {
@@ -1012,64 +1232,177 @@ function initInteractions() {
     });
   });
 
-  // Upload
-  const uploadZone = document.getElementById('upload-zone');
-  const fileInput = document.getElementById('file-input');
-
-  document.getElementById('btn-upload').addEventListener('click', () => fileInput.click());
-
-  uploadZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    uploadZone.classList.add('dragover');
-  });
-  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-  uploadZone.addEventListener('drop', e => {
-    e.preventDefault();
-    uploadZone.classList.remove('dragover');
-    handleFile(e.dataTransfer.files[0]);
-  });
-  fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
-
-  // Cancel processing
-  document.getElementById('btn-cancel-process').addEventListener('click', () => {
-    document.getElementById('processing-overlay').classList.add('hidden');
+  // Analyze button
+  document.getElementById('btn-analyze').addEventListener('click', async () => {
+    try {
+      const data = await api.analyze([]);
+      showToast(`开始分析 ${data.chapter_count} 章`, 'success');
+      await pollTask(data.task_id, 'analyze');
+    } catch (e) {
+      showToast('分析失败: ' + e.message, 'error');
+    }
   });
 
   // Synthesize button
-  document.getElementById('btn-synthesize').addEventListener('click', () => {
-    document.getElementById('processing-overlay').classList.remove('hidden');
+  document.getElementById('btn-synthesize').addEventListener('click', async () => {
+    if (!state.currentChapter) {
+      showToast('请先选择章节', 'error');
+      return;
+    }
+    try {
+      const data = await api.synthesize([state.currentChapter.id]);
+      showToast('开始合成', 'success');
+      await pollTask(data.task_id, 'synthesize');
+    } catch (e) {
+      showToast('合成失败: ' + e.message, 'error');
+    }
   });
 
-  // Play button toggle
-  let playing = false;
-  document.getElementById('play-btn').addEventListener('click', () => {
-    playing = !playing;
-    const btn = document.getElementById('play-btn');
-    btn.innerHTML = playing
-      ? '<svg width="14" height="16" viewBox="0 0 14 16"><rect x="2" y="0" width="3" height="16"/><rect x="9" y="0" width="3" height="16"/></svg>'
-      : '<svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>';
+  // Synthesize all
+  document.getElementById('btn-synthesize-all').addEventListener('click', async () => {
+    try {
+      const data = await api.synthesize([]);
+      showToast(`开始合成 ${data.chapter_count} 章`, 'success');
+      await pollTask(data.task_id, 'synthesize');
+    } catch (e) {
+      showToast('合成失败: ' + e.message, 'error');
+    }
+  });
+
+  // Export
+  document.getElementById('btn-export').addEventListener('click', () => {
+    if (!state.projectId) return;
+    window.open(api.getExportUrl(state.projectId), '_blank');
+  });
+
+  // Save voices
+  document.getElementById('btn-save-voices').addEventListener('click', saveVoicesConfig);
+
+  // Play/pause
+  document.getElementById('play-btn').addEventListener('click', togglePlay);
+
+  // Cancel process
+  document.getElementById('btn-cancel-process').addEventListener('click', () => {
+    document.getElementById('processing-overlay').classList.add('hidden');
   });
 }
 
-function handleFile(file) {
+async function handleUpload(file) {
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
   if (!['epub', 'txt'].includes(ext)) {
-    alert('请上传 .epub 或 .txt 文件');
+    showToast('请上传 .epub 或 .txt 文件', 'error');
     return;
   }
-  document.getElementById('upload-zone').classList.add('hidden');
-  document.getElementById('content-area').classList.remove('hidden');
+
+  try {
+    showToast('正在上传…');
+    const data = await api.upload(file);
+
+    state.projectId = data.project_id;
+    state.filename = data.filename;
+    state.chapters = [];
+
+    // Update UI
+    document.getElementById('upload-zone').classList.add('hidden');
+    document.getElementById('content-area').classList.remove('hidden');
+    document.getElementById('header-filename').textContent = data.filename;
+    document.getElementById('header-filename').style.display = '';
+
+    showToast(`上传成功: ${data.chapter_count} 章, ${data.total_words.toLocaleString()} 字`, 'success');
+
+    await refreshChapters();
+    await loadVoices();
+
+    // Auto-load first chapter
+    if (state.chapters.length > 0) {
+      await loadChapterContent(state.chapters[0].id);
+    }
+  } catch (e) {
+    showToast('上传失败: ' + e.message, 'error');
+  }
+}
+
+function saveVoicesConfig() {
+  if (!state.projectId) return;
+
+  const voices = { default: {}, characters: {} };
+
+  // Read form values
+  document.querySelectorAll('[data-role]').forEach(el => {
+    const role = el.dataset.role;
+    const field = el.dataset.field;
+    const value = el.value;
+
+    if (role === 'default') {
+      voices.default[field] = value;
+    } else if (role === 'char') {
+      const name = el.dataset.name;
+      if (!voices.characters[name]) voices.characters[name] = {};
+      voices.characters[name][field] = value;
+    }
+  });
+
+  voices.default.mode = 'preset';
+  for (const name of Object.keys(voices.characters)) {
+    voices.characters[name].mode = 'preset';
+  }
+
+  api.updateVoices(state.projectId, voices)
+    .then(() => showToast('音色配置已保存', 'success'))
+    .catch(e => showToast('保存失败: ' + e.message, 'error'));
+}
+
+function togglePlay() {
+  const player = document.getElementById('audio-player');
+  if (!state.projectId || !state.currentChapter) return;
+
+  if (state.audioPlaying) {
+    player.pause();
+    state.audioPlaying = false;
+  } else {
+    player.src = api.getAudioUrl(state.projectId, state.currentChapter.id);
+    player.play();
+    state.audioPlaying = true;
+  }
+
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = state.audioPlaying
+    ? '<svg width="14" height="16" viewBox="0 0 14 16"><rect x="2" y="0" width="3" height="16"/><rect x="9" y="0" width="3" height="16"/></svg>'
+    : '<svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>';
+}
+
+function previewVoice(characterName) {
+  showToast(`试听 ${characterName} 的音色（需后端支持）`);
 }
 
 // ── Init ──────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  renderChapters();
-  renderParagraphs();
-  renderCharacters();
-  renderVoicePanel();
-  renderWaveform();
-  initInteractions();
+document.addEventListener('DOMContentLoaded', async () => {
+  initEventHandlers();
+
+  // Check if there's an existing project
+  try {
+    const status = await api.getStatus();
+    if (status.project?.id) {
+      state.projectId = status.project.id;
+      state.filename = status.project.name;
+
+      document.getElementById('upload-zone').classList.add('hidden');
+      document.getElementById('content-area').classList.remove('hidden');
+      document.getElementById('header-filename').textContent = status.project.name;
+      document.getElementById('header-filename').style.display = '';
+
+      await refreshChapters();
+      await loadVoices();
+
+      if (state.chapters.length > 0) {
+        await loadChapterContent(state.chapters[0].id);
+      }
+    }
+  } catch (e) {
+    // API not available - stay in upload mode
+    console.log('API not available:', e);
+  }
 });
 </script>
 
