@@ -357,6 +357,27 @@ def _synthesize_one_chapter(
     return (idx, "", False)
 
 
+def _load_cached_analysis(chapters: list[dict], output_dir: str) -> dict:
+    """从缓存加载 LLM 分析结果"""
+    import json
+    analysis_dir = os.path.join(output_dir, "analysis")
+    if not os.path.exists(analysis_dir):
+        return {}
+
+    results = {}
+    for ch in chapters:
+        idx = ch["index"]
+        cache_file = os.path.join(analysis_dir, f"chapter_{idx:03d}.json")
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    results[idx] = json.load(f)
+            except Exception as e:
+                logger.warning(f"  加载第{idx}章分析缓存失败: {e}")
+
+    return results
+
+
 def step_tts_synthesize(
     chapters: list[dict],
     analysis_results: dict,
@@ -634,6 +655,14 @@ def main():
             logger.info(f"  1. 编辑 {output_dir}/voices_auto.yaml 调整音色")
             logger.info(f"  2. python main.py {args.novel} --skip-llm --voices {output_dir}/voices_auto.yaml")
             return
+
+    elif args.skip_llm:
+        # 从缓存加载分析结果
+        analysis_results = _load_cached_analysis(chapters, output_dir)
+        if analysis_results:
+            logger.info(f"  从缓存加载 {len(analysis_results)} 章分析结果")
+        else:
+            logger.warning("  未找到缓存的分析结果，TTS 将使用纯文本模式")
 
     # ── Step 3: TTS 合成 ──────────────────────────────────
     if not api_key:
