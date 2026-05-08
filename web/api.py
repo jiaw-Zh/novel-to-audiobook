@@ -52,16 +52,6 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 # 存储正在处理的任务状态
 tasks: dict[str, dict] = {}
 
-# 当前项目状态
-current_project: dict = {
-    "id": None,
-    "name": None,
-    "chapters": [],
-    "characters": [],
-    "voices_config": None,
-    "processing": False,
-}
-
 
 # ── Pydantic Models ──────────────────────────────────
 class VoiceConfig(BaseModel):
@@ -171,6 +161,24 @@ def save_voices_config(project_id: str, config: dict):
     )
 
 
+def load_project_meta(project_id: str) -> Optional[dict]:
+    """Load project metadata from meta.json"""
+    project_dir = get_project_dir(project_id)
+    meta_file = project_dir / "meta.json"
+    if meta_file.exists():
+        return json.loads(meta_file.read_text(encoding="utf-8"))
+    return None
+
+
+def save_project_meta(project_id: str, meta: dict):
+    """Save project metadata to meta.json"""
+    project_dir = get_project_dir(project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
 def get_config() -> dict:
     """从 .env 或环境变量读取配置"""
     from dotenv import load_dotenv
@@ -194,15 +202,23 @@ def get_config() -> dict:
 async def get_status():
     """获取系统状态"""
     return {
-        "project": {
-            "id": current_project["id"],
-            "name": current_project["name"],
-            "chapter_count": len(current_project["chapters"]),
-            "character_count": len(current_project["characters"]),
-            "processing": current_project["processing"],
-        },
         "config": get_config(),
     }
+
+
+@app.get("/api/projects")
+async def list_projects():
+    """列出所有项目"""
+    projects = []
+    if PROJECTS_DIR.exists():
+        for project_dir in sorted(PROJECTS_DIR.iterdir()):
+            if project_dir.is_dir():
+                meta = load_project_meta(project_dir.name)
+                if meta:
+                    projects.append(meta)
+    # Sort by created_at descending
+    projects.sort(key=lambda p: p.get("created_at", ""), reverse=True)
+    return {"projects": projects}
 
 
 @app.post("/api/upload")
@@ -262,19 +278,33 @@ async def upload_file(file: UploadFile = File(...)):
 
     save_chapters(project_id, chapter_list)
 
-    # 更新全局状态
-    current_project["id"] = project_id
-    current_project["name"] = file.filename
-    current_project["chapters"] = chapter_list
-    current_project["characters"] = []
-    current_project["voices_config"] = None
+    # 保存项目元数据
+    total_words = sum(ch["word_count"] for ch in chapter_list)
+    meta = {
+        "id": project_id,
+        "name": file.filename,
+        "created_at": datetime.now().isoformat(),
+        "chapter_count": len(chapter_list),
+        "total_words": total_words,
+    }
+    save_project_meta(project_id, meta)
 
     return {
         "project_id": project_id,
         "filename": file.filename,
         "chapter_count": len(chapter_list),
-        "total_words": sum(ch["word_count"] for ch in chapter_list),
+        "total_words": total_words,
     }
+
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
+    """删除项目"""
+    project_dir = get_project_dir(project_id)
+    if not project_dir.exists():
+        raise HTTPException(404, "项目不存在")
+    shutil.rmtree(project_dir)
+    return {"success": True, "deleted_project_id": project_id}
 
 
 @app.get("/api/chapters")
@@ -305,12 +335,12 @@ async def get_chapter(project_id: str, chapter_id: int):
 
 
 @app.post("/api/analyze")
-async def analyze_chapters(request: AnalyzeRequest, background_tasks: BackgroundTasks):
+async def analyze_chapters(
+    request: AnalyzeRequest,
+    background_tasks: BackgroundTasks,
+    project_id: str = Query(..., description="项目 ID"),
+):
     """LLM 分析章节"""
-    project_id = current_project["id"]
-    if not project_id:
-        raise HTTPException(400, "未上传文件")
-
     chapters = load_chapters(project_id)
     if not chapters:
         raise HTTPException(400, "无章节数据")
@@ -328,7 +358,6 @@ async def analyze_chapters(request: AnalyzeRequest, background_tasks: Background
         if ch["id"] in chapter_ids:
             ch["status"] = "analyzing"
     save_chapters(project_id, chapters)
-    current_project["chapters"] = chapters
 
     # 后台执行分析
     task_id = str(uuid.uuid4())[:8]
@@ -399,14 +428,11 @@ async def run_analysis(project_id: str, chapter_ids: list[int], max_workers: int
     # 保存结果
     save_chapters(project_id, chapters)
     save_characters(project_id, all_characters)
-    current_project["chapters"] = chapters
-    current_project["characters"] = all_characters
 
     # 自动生成音色配置
     voice_manager = VoiceManager()
     auto_voices = voice_manager.auto_assign(all_characters)
     save_voices_config(project_id, auto_voices)
-    current_project["voices_config"] = auto_voices
 
     tasks[task_id]["status"] = "completed"
 
@@ -433,17 +459,16 @@ async def update_voices(project_id: str, update: VoicesUpdate):
         "characters": {name: vc.dict() for name, vc in update.characters.items()}
     }
     save_voices_config(project_id, config)
-    current_project["voices_config"] = config
     return {"success": True}
 
 
 @app.post("/api/synthesize")
-async def synthesize_chapters(request: SynthesizeRequest, background_tasks: BackgroundTasks):
+async def synthesize_chapters(
+    request: SynthesizeRequest,
+    background_tasks: BackgroundTasks,
+    project_id: str = Query(..., description="项目 ID"),
+):
     """TTS 合成章节"""
-    project_id = current_project["id"]
-    if not project_id:
-        raise HTTPException(400, "未上传文件")
-
     chapters = load_chapters(project_id)
     voices_config = load_voices_config(project_id)
 
@@ -460,7 +485,6 @@ async def synthesize_chapters(request: SynthesizeRequest, background_tasks: Back
         if ch["id"] in chapter_ids:
             ch["status"] = "synthesizing"
     save_chapters(project_id, chapters)
-    current_project["chapters"] = chapters
 
     # 后台执行合成
     task_id = str(uuid.uuid4())[:8]
@@ -560,7 +584,6 @@ async def run_synthesis(project_id: str, chapter_ids: list[int], max_workers: in
     await asyncio.gather(*[limited_synthesize(ch_id) for ch_id in chapter_ids])
 
     save_chapters(project_id, chapters)
-    current_project["chapters"] = chapters
     tasks[task_id]["status"] = "completed"
 
 

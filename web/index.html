@@ -678,6 +678,180 @@ textarea.form-input {
 .empty-state-icon { font-size: 32px; margin-bottom: 8px; }
 .empty-state-text { font-size: 14px; }
 
+/* ── Bookshelf ──────────────────────────────────────── */
+.bookshelf-overlay {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px;
+}
+.bookshelf-overlay.hidden { display: none; }
+
+.bookshelf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.bookshelf-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+.bookshelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.bookshelf-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bookshelf-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim), var(--shadow-sm);
+}
+.bookshelf-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 28px;
+}
+.bookshelf-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.bookshelf-card-meta span { display: flex; align-items: center; gap: 4px; }
+.bookshelf-card-delete {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-3);
+  opacity: 0;
+  transition: all .15s;
+}
+.bookshelf-card:hover .bookshelf-card-delete { opacity: 1; }
+.bookshelf-card-delete:hover {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.bookshelf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 40px;
+  color: var(--text-3);
+  text-align: center;
+}
+.bookshelf-empty-icon { font-size: 48px; }
+.bookshelf-empty-text { font-size: 15px; }
+
+/* ── Project Switcher ─────────────────────────────── */
+.project-switcher {
+  position: relative;
+}
+.project-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all .12s;
+}
+.project-switcher-btn:hover { border-color: var(--border-light); background: var(--bg-3); }
+.project-switcher-btn .switcher-name {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-switcher-btn .switcher-arrow { font-size: 10px; color: var(--text-3); }
+.project-switcher-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  padding: 6px;
+}
+.project-switcher-dropdown.open { display: block; }
+.project-switcher-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .12s;
+  gap: 8px;
+}
+.project-switcher-item:hover { background: var(--bg-hover); }
+.project-switcher-item.active { background: var(--accent-dim); }
+.project-switcher-item-name {
+  font-size: 13px;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.project-switcher-item-delete {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all .12s;
+}
+.project-switcher-item:hover .project-switcher-item-delete { opacity: 1; }
+.project-switcher-item-delete:hover { background: var(--red-dim); color: var(--red); }
+.project-switcher-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.project-switcher-footer {
+  padding: 6px;
+}
+.project-switcher-footer .btn { width: 100%; justify-content: center; }
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 1100px) {
   .app { grid-template-columns: var(--sidebar-w) 1fr; }
@@ -698,6 +872,13 @@ textarea.form-input {
       <div class="header-logo">书</div>
       <span class="header-title">小说有声书</span>
       <span class="header-subtitle">MiMo TTS</span>
+      <div class="project-switcher" id="project-switcher" style="display:none">
+        <button class="project-switcher-btn" id="project-switcher-btn">
+          <span class="switcher-name" id="project-switcher-name"></span>
+          <span class="switcher-arrow">▾</span>
+        </button>
+        <div class="project-switcher-dropdown" id="project-switcher-dropdown"></div>
+      </div>
       <span class="header-filename" id="header-filename" style="display:none"></span>
     </div>
     <div class="header-actions">
@@ -727,6 +908,15 @@ textarea.form-input {
 
   <!-- ── Main Content ────────────────────────── -->
   <main class="main">
+    <!-- Bookshelf (multi-project view) -->
+    <div class="bookshelf-overlay hidden" id="bookshelf">
+      <div class="bookshelf-header">
+        <h2>📚 我的书架</h2>
+        <button class="btn btn-primary btn-sm" id="btn-bookshelf-upload">+ 上传新书</button>
+      </div>
+      <div id="bookshelf-content"></div>
+    </div>
+
     <!-- Upload Zone (initial state) -->
     <div class="upload-zone" id="upload-zone">
       <div class="upload-icon" id="upload-icon">📖</div>
@@ -866,6 +1056,17 @@ const api = {
     return res.json();
   },
 
+  async getProjects() {
+    const res = await fetch(`${API_BASE}/api/projects`);
+    return res.json();
+  },
+
+  async deleteProject(id) {
+    const res = await fetch(`${API_BASE}/api/projects/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   async getChapters(projectId) {
     const res = await fetch(`${API_BASE}/api/chapters?project_id=${projectId}`);
     return res.json();
@@ -880,7 +1081,7 @@ const api = {
     const res = await fetch(`${API_BASE}/api/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chapter_ids: projectIds, llm_workers: workers })
+      body: JSON.stringify({ project_id: state.projectId, chapter_ids: projectIds, llm_workers: workers })
     });
     return res.json();
   },
@@ -889,7 +1090,7 @@ const api = {
     const res = await fetch(`${API_BASE}/api/synthesize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chapter_ids: projectIds, tts_workers: workers })
+      body: JSON.stringify({ project_id: state.projectId, chapter_ids: projectIds, tts_workers: workers })
     });
     return res.json();
   },
@@ -936,6 +1137,7 @@ const state = {
   characters: [],
   voices: null,
   audioPlaying: false,
+  projects: [],
 };
 
 // ── Toast ─────────────────────────────────────
@@ -1187,6 +1389,187 @@ async function loadVoices() {
   }
 }
 
+// ── Bookshelf & Project Management ──────────
+async function loadProjects() {
+  try {
+    const data = await api.getProjects();
+    state.projects = data.projects || [];
+  } catch (e) {
+    state.projects = [];
+  }
+}
+
+function showBookshelf() {
+  state.projectId = null;
+  state.filename = null;
+  state.chapters = [];
+  state.currentChapter = null;
+  state.characters = [];
+  state.voices = null;
+  state.audioPlaying = false;
+
+  document.getElementById('bookshelf').classList.remove('hidden');
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('content-area').classList.add('hidden');
+  document.getElementById('project-switcher').style.display = 'none';
+  document.getElementById('header-filename').style.display = 'none';
+  document.getElementById('badge-chapters').style.display = 'none';
+  document.getElementById('badge-chars').style.display = 'none';
+
+  renderBookshelf();
+}
+
+function renderBookshelf() {
+  const container = document.getElementById('bookshelf-content');
+
+  if (state.projects.length === 0) {
+    container.innerHTML = `
+      <div class="bookshelf-empty">
+        <div class="bookshelf-empty-icon">📚</div>
+        <div class="bookshelf-empty-text">还没有任何项目</div>
+        <button class="btn btn-primary" onclick="triggerBookshelfUpload()">上传第一本书</button>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="bookshelf-grid">${state.projects.map(p => {
+    const date = p.created_at ? new Date(p.created_at).toLocaleDateString('zh-CN') : '';
+    return `
+      <div class="bookshelf-card" data-project-id="${p.id}">
+        <div class="bookshelf-card-title" title="${p.filename || p.name || '未命名'}">${p.filename || p.name || '未命名'}</div>
+        <div class="bookshelf-card-meta">
+          <span>📄 ${p.chapter_count ?? '?'} 章</span>
+          <span>📝 ${(p.total_words || 0).toLocaleString()} 字</span>
+          ${date ? `<span>📅 ${date}</span>` : ''}
+        </div>
+        <button class="bookshelf-card-delete" title="删除项目" data-delete-id="${p.id}">✕</button>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function triggerBookshelfUpload() {
+  document.getElementById('file-input').click();
+}
+
+async function openProject(projectId) {
+  const project = state.projects.find(p => p.id === projectId);
+  if (!project) return;
+
+  state.projectId = projectId;
+  state.filename = project.filename || project.name;
+  state.chapters = [];
+  state.currentChapter = null;
+  state.characters = [];
+  state.voices = null;
+  state.audioPlaying = false;
+
+  document.getElementById('bookshelf').classList.add('hidden');
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('content-area').classList.remove('hidden');
+
+  // Update header
+  document.getElementById('header-filename').textContent = state.filename;
+  document.getElementById('header-filename').style.display = '';
+  document.getElementById('project-switcher').style.display = '';
+
+  updateProjectSwitcher();
+
+  // Reset tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="reader"]').classList.add('active');
+  document.getElementById('reader-view').classList.remove('hidden');
+  document.getElementById('analysis-view').classList.add('hidden');
+  document.getElementById('audio-view').classList.add('hidden');
+
+  await refreshChapters();
+  await loadVoices();
+
+  if (state.chapters.length > 0) {
+    await loadChapterContent(state.chapters[0].id);
+  }
+}
+
+async function deleteProjectConfirmed(projectId) {
+  if (!confirm('确定要删除这个项目吗？此操作不可撤销。')) return;
+
+  try {
+    await api.deleteProject(projectId);
+    showToast('项目已删除', 'success');
+    await loadProjects();
+
+    if (state.projectId === projectId) {
+      showBookshelf();
+    } else {
+      renderBookshelf();
+      updateProjectSwitcher();
+    }
+  } catch (e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+}
+
+function updateProjectSwitcher() {
+  const switcher = document.getElementById('project-switcher');
+  const nameEl = document.getElementById('project-switcher-name');
+  const dropdown = document.getElementById('project-switcher-dropdown');
+
+  if (!state.projectId) {
+    switcher.style.display = 'none';
+    return;
+  }
+
+  switcher.style.display = '';
+  nameEl.textContent = state.filename || '未命名';
+
+  // Build dropdown content
+  const items = state.projects.map(p => `
+    <div class="project-switcher-item ${p.id === state.projectId ? 'active' : ''}" data-project-id="${p.id}">
+      <span class="project-switcher-item-name" title="${p.filename || p.name || '未命名'}">${p.filename || p.name || '未命名'}</span>
+      <button class="project-switcher-item-delete" data-delete-id="${p.id}" title="删除">✕</button>
+    </div>
+  `).join('');
+
+  dropdown.innerHTML = items + `
+    <div class="project-switcher-divider"></div>
+    <div class="project-switcher-footer">
+      <button class="btn btn-ghost btn-sm" id="switcher-bookshelf-btn">📚 返回书架</button>
+    </div>`;
+
+  // Bind events on dropdown items
+  dropdown.querySelectorAll('.project-switcher-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.project-switcher-item-delete')) return;
+      const id = parseInt(item.dataset.projectId);
+      dropdown.classList.remove('open');
+      if (id !== state.projectId) openProject(id);
+    });
+  });
+
+  dropdown.querySelectorAll('.project-switcher-item-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.deleteId);
+      deleteProjectConfirmed(id);
+    });
+  });
+
+  const bookshelfBtn = dropdown.querySelector('#switcher-bookshelf-btn');
+  if (bookshelfBtn) {
+    bookshelfBtn.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+      showBookshelf();
+    });
+  }
+}
+
+function closeSwitcherDropdown(e) {
+  const switcher = document.getElementById('project-switcher');
+  const dropdown = document.getElementById('project-switcher-dropdown');
+  if (!switcher.contains(e.target)) {
+    dropdown.classList.remove('open');
+  }
+}
+
 // ── Event Handlers ────────────────────────────
 function initEventHandlers() {
   // Upload
@@ -1208,6 +1591,50 @@ function initEventHandlers() {
   fileInput.addEventListener('change', async e => {
     if (e.target.files[0]) await handleUpload(e.target.files[0]);
   });
+
+  // Bookshelf card clicks & delete
+  document.getElementById('bookshelf-content').addEventListener('click', async e => {
+    const deleteBtn = e.target.closest('.bookshelf-card-delete');
+    if (deleteBtn) {
+      e.stopPropagation();
+      const id = parseInt(deleteBtn.dataset.deleteId);
+      await deleteProjectConfirmed(id);
+      return;
+    }
+    const card = e.target.closest('.bookshelf-card');
+    if (card) {
+      const id = parseInt(card.dataset.projectId);
+      await openProject(id);
+    }
+  });
+
+  // Bookshelf drag-and-drop upload
+  const bookshelf = document.getElementById('bookshelf');
+  bookshelf.addEventListener('dragover', e => {
+    e.preventDefault();
+    bookshelf.style.background = 'var(--accent-dim)';
+  });
+  bookshelf.addEventListener('dragleave', () => {
+    bookshelf.style.background = '';
+  });
+  bookshelf.addEventListener('drop', async e => {
+    e.preventDefault();
+    bookshelf.style.background = '';
+    if (e.dataTransfer.files[0]) await handleUpload(e.dataTransfer.files[0]);
+  });
+
+  // Bookshelf upload button
+  document.getElementById('btn-bookshelf-upload').addEventListener('click', triggerBookshelfUpload);
+
+  // Project switcher toggle
+  document.getElementById('project-switcher-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dropdown = document.getElementById('project-switcher-dropdown');
+    dropdown.classList.toggle('open');
+  });
+
+  // Close switcher dropdown on outside click
+  document.addEventListener('click', closeSwitcherDropdown);
 
   // Chapter click
   document.getElementById('chapter-list').addEventListener('click', e => {
@@ -1303,11 +1730,18 @@ async function handleUpload(file) {
     state.filename = data.filename;
     state.chapters = [];
 
-    // Update UI
+    // Refresh projects list
+    await loadProjects();
+
+    // Switch to project view
+    document.getElementById('bookshelf').classList.add('hidden');
     document.getElementById('upload-zone').classList.add('hidden');
     document.getElementById('content-area').classList.remove('hidden');
     document.getElementById('header-filename').textContent = data.filename;
     document.getElementById('header-filename').style.display = '';
+    document.getElementById('project-switcher').style.display = '';
+
+    updateProjectSwitcher();
 
     showToast(`上传成功: ${data.chapter_count} 章, ${data.total_words.toLocaleString()} 字`, 'success');
 
@@ -1380,28 +1814,15 @@ function previewVoice(characterName) {
 document.addEventListener('DOMContentLoaded', async () => {
   initEventHandlers();
 
-  // Check if there's an existing project
-  try {
-    const status = await api.getStatus();
-    if (status.project?.id) {
-      state.projectId = status.project.id;
-      state.filename = status.project.name;
+  // Load projects list
+  await loadProjects();
 
-      document.getElementById('upload-zone').classList.add('hidden');
-      document.getElementById('content-area').classList.remove('hidden');
-      document.getElementById('header-filename').textContent = status.project.name;
-      document.getElementById('header-filename').style.display = '';
-
-      await refreshChapters();
-      await loadVoices();
-
-      if (state.chapters.length > 0) {
-        await loadChapterContent(state.chapters[0].id);
-      }
-    }
-  } catch (e) {
-    // API not available - stay in upload mode
-    console.log('API not available:', e);
+  if (state.projects.length > 0) {
+    // Show bookshelf view
+    showBookshelf();
+  } else {
+    // No projects - show upload zone (bookshelf empty state)
+    showBookshelf();
   }
 });
 </script>
