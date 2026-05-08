@@ -32,6 +32,7 @@ from parser import NovelParser, Segment, SegmentType, Chapter
 from voice_manager import VoiceManager
 from tts_engine import TTSEngine, TTSRequest
 from audio_merger import AudioMerger
+from pypinyin import lazy_pinyin
 
 logger = logging.getLogger(__name__)
 
@@ -572,7 +573,7 @@ def main():
     parser.add_argument("novel", nargs="?", help="小说文件路径 (.txt / .epub)，--skip-llm 时可省略")
 
     # 输出选项
-    parser.add_argument("--output", "-o", default=None, help="输出目录（默认: 小说同目录/audiobook/）")
+    parser.add_argument("--output", "-o", default=None, help="输出目录（默认: 小说同目录/拼音名/）")
     parser.add_argument("--format", "-f", default="mp3", choices=["mp3", "wav", "m4b"], help="输出格式")
     parser.add_argument("--voices", "-v", default=None, help="角色音色配置 (YAML)")
 
@@ -621,7 +622,7 @@ def main():
         ext = None
 
     api_key = args.api_key or os.environ.get("TTS_API_KEY", os.environ.get("MIMO_API_KEY", ""))
-    output_dir = args.output or (str(Path(args.novel).parent / "audiobook") if args.novel else "output")
+    output_dir = args.output or (str(Path(args.novel).parent / "".join(lazy_pinyin(Path(args.novel).stem))) if args.novel else "output")
 
     # EPUB 默认启用 LLM
     if not args.use_llm and not args.llm_only and not args.skip_llm:
