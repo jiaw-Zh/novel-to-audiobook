@@ -99,7 +99,7 @@ cat output/voices_auto.yaml
 # 手动调整音色配置
 vim output/voices_auto.yaml
 
-# Step 3: 用调整后的配置合成
+# Step 3: 用调整后的配置合成（自动从缓存加载分析结果）
 python main.py novel.epub --skip-llm --voices output/voices_auto.yaml
 ```
 
@@ -231,7 +231,7 @@ python main.py <novel> [选项]
 流程控制:
   --use-llm                强制使用 LLM 分析
   --llm-only               只切割 + 分析，不合成
-  --skip-llm               跳过 LLM，用规则解析
+  --skip-llm               跳过 LLM，从缓存加载分析结果
   --resume-from N          从第 N 章恢复
   --start-chapter N        起始章节编号 (默认: 1)
   --end-chapter N          结束章节编号 (默认: 0 表示全部)
@@ -324,4 +324,4 @@ novel-to-audiobook/
 - **LLM 模型**: `mimo-v2.5`（推理模型，需 streaming 模式，max_tokens ≥ 16000）
 - **音频格式**: 段落间静音 0.3-0.5s，段内句子间静音 0.15s
 - **分段清理**: 合成完成后自动删除临时 .wav 段文件，只保留最终拼接结果
-- **LLM 缓存**: 分析结果缓存到 `analysis/` 目录，重复运行不会重新调用 LLM
+- **LLM 缓存**: 分析结果缓存到 `analysis/` 目录，`--skip-llm` 时自动加载缓存，无需重新调用 LLM
