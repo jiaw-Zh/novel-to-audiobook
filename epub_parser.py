@@ -256,12 +256,9 @@ def _split_into_chapters(
         if not text.strip():
             continue
 
-        # 去重：如果 text 开头已经是 title，不再重复写入
+        # 写入文件
         clean_text = text.strip()
-        if clean_text.startswith(title):
-            content = clean_text
-        else:
-            content = f"{title}\n\n{clean_text}"
+        content = f"{title}\n\n{clean_text}" if clean_text else title
 
         # 文件名：第001章_xxx.txt
         safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:30]
@@ -290,6 +287,10 @@ def _html_to_text(soup) -> str:
     for tag in soup.find_all(["script", "style", "nav", "header", "footer"]):
         tag.decompose()
 
+    # 移除标题标签（标题已从 TOC 获取，避免重复）
+    for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+        tag.decompose()
+
     lines = []
 
     for element in soup.body.descendants if soup.body else soup.descendants:
@@ -301,10 +302,6 @@ def _html_to_text(soup) -> str:
             if element.name in ["p", "div", "section", "article", "blockquote"]:
                 lines.append("")  # 段落分隔
             elif element.name in ["br"]:
-                lines.append("")
-            elif element.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
-                lines.append("")
-                lines.append(element.get_text(strip=True))
                 lines.append("")
 
     # 去重空行，保留段落结构
