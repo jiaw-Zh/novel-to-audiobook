@@ -292,8 +292,8 @@ def _synthesize_one_chapter(
 
     if not segments_data:
         parser = NovelParser(config.parser)
-        chapters_parsed = parser.parse_file(ch["file_path"])
-        segments = chapters_parsed[0].segments if chapters_parsed else []
+        chapter_parsed = parser.parse_single_chapter(ch["file_path"], number=idx, title=ch.get("title", ""))
+        segments = chapter_parsed.segments if chapter_parsed else []
     else:
         segments = _dicts_to_segments(segments_data)
 

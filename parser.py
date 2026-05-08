@@ -75,6 +75,16 @@ class NovelParser:
             text = f.read()
         return self.parse_text(text)
 
+    def parse_single_chapter(self, filepath: str, number: int = 1, title: str = "") -> Chapter:
+        """将单个章节文件作为一章解析（不重新分割章节标题）"""
+        with open(filepath, "r", encoding="utf-8") as f:
+            text = f.read()
+        text = self._preprocess(text)
+        ch = Chapter(number=number, title=title)
+        ch._raw_text = text
+        ch.segments = self._parse_segments(ch)
+        return ch
+
     def parse_text(self, text: str) -> list[Chapter]:
         """解析文本，返回章节列表"""
         text = self._preprocess(text)
@@ -120,8 +130,8 @@ class NovelParser:
         paragraphs = [p.strip() for p in raw.split("\n") if p.strip()]
 
         start_idx = 0
-        if paragraphs and re.match(self.config.chapter_pattern, paragraphs[0]):
-            start_idx = 1
+        while start_idx < len(paragraphs) and re.match(self.config.chapter_pattern, paragraphs[start_idx]):
+            start_idx += 1
 
         seg_index = 0
         for para in paragraphs[start_idx:]:
