@@ -378,6 +378,30 @@ def _load_cached_analysis(chapters: list[dict], output_dir: str) -> dict:
     return results
 
 
+def _load_chapters_from_dir(chapters_dir: str) -> list[dict]:
+    """从已有的 chapters 目录读取章节列表"""
+    import re
+    chapters = []
+    for filename in sorted(os.listdir(chapters_dir)):
+        if not filename.endswith(".txt"):
+            continue
+        # 解析文件名：第001章_xxx.txt
+        match = re.match(r"第(\d+)章_(.+)\.txt", filename)
+        if not match:
+            continue
+        idx = int(match.group(1))
+        title = match.group(2)
+        filepath = os.path.join(chapters_dir, filename)
+        word_count = os.path.getsize(filepath)
+        chapters.append({
+            "index": idx,
+            "title": title,
+            "file_path": filepath,
+            "word_count": word_count,
+        })
+    return chapters
+
+
 def step_tts_synthesize(
     chapters: list[dict],
     analysis_results: dict,
@@ -545,7 +569,7 @@ def main():
   python main.py novel.epub --skip-llm --resume-from 50
         """,
     )
-    parser.add_argument("novel", help="小说文件路径 (.txt / .epub)")
+    parser.add_argument("novel", nargs="?", help="小说文件路径 (.txt / .epub)，--skip-llm 时可省略")
 
     # 输出选项
     parser.add_argument("--output", "-o", default=None, help="输出目录（默认: 小说同目录/audiobook/）")
@@ -581,17 +605,23 @@ def main():
     setup_logging(args.log_level)
 
     # ── 验证输入 ──────────────────────────────────────────
-    if not Path(args.novel).exists():
-        logger.error(f"文件不存在: {args.novel}")
-        sys.exit(1)
+    if args.novel:
+        if not Path(args.novel).exists():
+            logger.error(f"文件不存在: {args.novel}")
+            sys.exit(1)
 
-    ext = Path(args.novel).suffix.lower()
-    if ext not in (".txt", ".epub"):
-        logger.error(f"不支持的格式: {ext}（支持 .txt / .epub）")
-        sys.exit(1)
+        ext = Path(args.novel).suffix.lower()
+        if ext not in (".txt", ".epub"):
+            logger.error(f"不支持的格式: {ext}（支持 .txt / .epub）")
+            sys.exit(1)
+    else:
+        if not args.skip_llm:
+            logger.error("未指定小说文件，请提供 .epub 或 .txt 文件")
+            sys.exit(1)
+        ext = None
 
     api_key = args.api_key or os.environ.get("TTS_API_KEY", os.environ.get("MIMO_API_KEY", ""))
-    output_dir = args.output or str(Path(args.novel).parent / "audiobook")
+    output_dir = args.output or (str(Path(args.novel).parent / "audiobook") if args.novel else "output")
 
     # EPUB 默认启用 LLM
     if not args.use_llm and not args.llm_only and not args.skip_llm:
@@ -607,7 +637,20 @@ def main():
     logger.info("📖 Step 1: 解析小说文件")
     logger.info(f"{'═'*60}")
 
-    chapters = step_parse_novel(args.novel, output_dir)
+    if args.skip_llm:
+        # --skip-llm 模式：从已有的 chapters 目录读取章节列表
+        chapters_dir = os.path.join(output_dir, "chapters")
+        if os.path.exists(chapters_dir):
+            chapters = _load_chapters_from_dir(chapters_dir)
+            logger.info(f"  从缓存加载 {len(chapters)} 章")
+        elif args.novel:
+            chapters = step_parse_novel(args.novel, output_dir)
+        else:
+            logger.error("未找到 chapters 目录，请先运行切割")
+            sys.exit(1)
+    else:
+        chapters = step_parse_novel(args.novel, output_dir)
+
     total_words = sum(ch["word_count"] for ch in chapters)
     logger.info(f"\n✅ 切割完成: {len(chapters)} 章, {total_words:,} 字")
 
