@@ -110,7 +110,20 @@ python main.py novel.epub --skip-llm --voices output/voices_auto.yaml
 python main.py novel.epub --skip-llm --resume-from 50
 ```
 
-### 模式 4: 分析指定章节
+### 模式 4: 直接合成（无需原始文件）
+
+```bash
+# 已有分析缓存时，可省略小说文件
+python main.py --skip-llm
+
+# 指定输出目录
+python main.py --skip-llm --output /path/to/output
+
+# 指定章节范围
+python main.py --skip-llm --start-chapter 5 --end-chapter 10
+```
+
+### 模式 5: 分析指定章节
 
 ```bash
 # 只分析第 6-10 章（适合先验证效果再跑全量）
