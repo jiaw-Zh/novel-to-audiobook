@@ -110,18 +110,34 @@ python main.py novel.epub --skip-llm --voices output/voices_auto.yaml
 python main.py novel.epub --skip-llm --resume-from 50
 ```
 
-### 模式 4: 直接合成（无需原始文件）
+### 模式 4: 使用已有缓存直接合成
+
+当 `chapters/` 和 `analysis/` 目录已存在时，无需原始小说文件，直接合成音频：
 
 ```bash
-# 已有分析缓存时，可省略小说文件
+# 自动从当前 output/ 目录加载 chapters + analysis 缓存
 python main.py --skip-llm
 
-# 指定输出目录
-python main.py --skip-llm --output /path/to/output
+# 指定缓存目录（analysis/ 和 chapters/ 的父目录）
+python main.py --skip-llm --output /path/to/audiobook
 
 # 指定章节范围
 python main.py --skip-llm --start-chapter 5 --end-chapter 10
 ```
+
+**缓存目录结构要求：**
+
+```
+output/  (或 --output 指定的目录)
+├── chapters/          # 已切割的章节 txt（_load_chapters_from_dir 读取）
+│   ├── 第001章_xxx.txt
+│   └── ...
+└── analysis/          # LLM 分析结果 JSON（_load_cached_analysis 读取）
+    ├── chapter_001.json
+    └── ...
+```
+
+> ⚠️ 两个目录缺一不可：没有 `chapters/` 会报错，没有 `analysis/` 则 TTS 使用纯文本模式（无角色/语气信息）。
 
 ### 模式 5: 分析指定章节
 
