@@ -256,13 +256,20 @@ def _split_into_chapters(
         if not text.strip():
             continue
 
+        # 去重：如果 text 开头已经是 title，不再重复写入
+        clean_text = text.strip()
+        if clean_text.startswith(title):
+            content = clean_text
+        else:
+            content = f"{title}\n\n{clean_text}"
+
         # 文件名：第001章_xxx.txt
         safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:30]
         filename = f"第{i:03d}章_{safe_title}.txt"
         filepath = os.path.join(output_dir, filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"{title}\n\n{text}")
+            f.write(content)
 
         result.append(EpubChapter(
             index=i,
