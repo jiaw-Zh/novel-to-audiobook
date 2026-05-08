@@ -22,7 +22,7 @@ from pydantic import BaseModel
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from epub_parser import parse_epub as EpubParser
+from epub_parser import parse_epub
 from parser import NovelParser
 from llm_parser import LLMParser
 from tts_engine import TTSEngine
@@ -226,31 +226,35 @@ async def upload_file(file: UploadFile = File(...)):
         f.write(content)
 
     # 解析章节
-    chapters = []
+    chapters_data = []  # list of (title, text)
     if ext == ".epub":
-        parser = EpubParser()
-        chapters = parser.parse(str(upload_path))
+        book = parse_epub(str(upload_path))
+        for ch in book.chapters:
+            chapters_data.append((ch.title, ch.text))
     else:
         parser = NovelParser()
         with open(upload_path, "r", encoding="utf-8") as f:
             text = f.read()
-        chapters = parser.parse(text)
+        parsed_chapters = parser.parse_text(text)
+        for ch in parsed_chapters:
+            raw = getattr(ch, "_raw_text", "")
+            chapters_data.append((ch.title, raw))
 
     # 保存章节文本文件
     chapters_dir = project_dir / "chapters"
     chapters_dir.mkdir(exist_ok=True)
 
     chapter_list = []
-    for i, ch in enumerate(chapters):
+    for i, (title, text) in enumerate(chapters_data):
         ch_id = i + 1
         # 保存章节文本
         ch_file = chapters_dir / f"chapter_{ch_id:03d}.txt"
-        ch_file.write_text(ch["content"], encoding="utf-8")
+        ch_file.write_text(text, encoding="utf-8")
 
         chapter_list.append({
             "id": ch_id,
-            "title": ch.get("title", f"第{ch_id}章"),
-            "word_count": ch.get("word_count", len(ch["content"])),
+            "title": title or f"第{ch_id}章",
+            "word_count": len(text),
             "status": "pending",  # pending / analyzing / analyzed / synthesizing / done / error
             "has_analysis": False,
             "has_audio": False,
