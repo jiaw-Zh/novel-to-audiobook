@@ -22,7 +22,7 @@ from pydantic import BaseModel
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from epub_parser import EpubParser
+from epub_parser import parse_epub as EpubParser
 from parser import NovelParser
 from llm_parser import LLMParser
 from tts_engine import TTSEngine
