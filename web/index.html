@@ -158,6 +158,13 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .chapter-item.active { background: var(--accent-dim); }
 .chapter-item.active .chapter-name { color: var(--accent); font-weight: 500; }
 
+.chapter-select {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .chapter-status {
   width: 7px; height: 7px;
   border-radius: 50%;
@@ -192,6 +199,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 .btn {
@@ -901,6 +909,8 @@ textarea.form-input {
       <!-- Chapters populated by JS -->
     </div>
     <div class="sidebar-footer">
+      <button class="btn btn-primary btn-sm" id="btn-analyze-current" disabled>分析当前章节</button>
+      <button class="btn btn-ghost btn-sm" id="btn-analyze-selected" disabled>分析选中章节</button>
       <button class="btn btn-primary btn-sm" id="btn-analyze" disabled>LLM 分析</button>
       <button class="btn btn-ghost btn-sm" id="btn-synthesize-all" disabled>合成全部</button>
     </div>
@@ -1142,6 +1152,7 @@ const state = {
   voices: null,
   audioPlaying: false,
   projects: [],
+  selectedChapterIds: new Set(),
 };
 
 // ── Toast ─────────────────────────────────────
@@ -1165,6 +1176,7 @@ function renderChapters() {
 
   list.innerHTML = filtered.map(ch => `
     <div class="chapter-item ${state.currentChapter?.id === ch.id ? 'active' : ''}" data-id="${ch.id}">
+      <input class="chapter-select" type="checkbox" data-id="${ch.id}" ${state.selectedChapterIds.has(ch.id) ? 'checked' : ''} aria-label="选择 ${ch.title}">
       <div class="chapter-status ${ch.status}"></div>
       <div class="chapter-info">
         <div class="chapter-name">${ch.title}</div>
@@ -1185,9 +1197,19 @@ function renderChapters() {
   document.getElementById('badge-chapters').textContent = `${total} 章`;
   document.getElementById('badge-chapters').style.display = '';
 
-  // Update buttons
+  updateChapterActionButtons();
+}
+
+function updateChapterActionButtons() {
   const hasPending = state.chapters.some(ch => ch.status === 'pending');
   const hasAnalysis = state.chapters.some(ch => ch.has_analysis);
+  const hasCurrent = Boolean(state.currentChapter);
+  const selectedCount = state.selectedChapterIds.size;
+  const selectedBtn = document.getElementById('btn-analyze-selected');
+
+  document.getElementById('btn-analyze-current').disabled = !hasCurrent;
+  selectedBtn.disabled = selectedCount === 0;
+  selectedBtn.textContent = selectedCount > 0 ? `分析选中章节 (${selectedCount})` : '分析选中章节';
   document.getElementById('btn-analyze').disabled = !hasPending;
   document.getElementById('btn-synthesize-all').disabled = !hasAnalysis;
 }
@@ -1340,36 +1362,42 @@ function renderVoicePanel(analysis) {
 }
 
 // ── Task Polling ──────────────────────────────
-async function pollTask(taskId, type) {
-  const overlay = document.getElementById('processing-overlay');
-  const progressBar = document.getElementById('processing-progress-bar');
-  const stepLabel = document.getElementById('processing-step-label');
-  const percentLabel = document.getElementById('processing-percent');
-
-  overlay.classList.remove('hidden');
-  document.getElementById('processing-title').textContent = type === 'analyze' ? '正在 LLM 分析…' : '正在 TTS 合成…';
-  document.getElementById('processing-subtitle').textContent = state.filename || '';
-
+function watchTask(taskId, type) {
   const poll = setInterval(async () => {
     try {
       const task = await api.getTaskStatus(taskId);
       const percent = task.total > 0 ? Math.round(task.progress / task.total * 100) : 0;
-      progressBar.style.width = percent + '%';
-      percentLabel.textContent = percent + '%';
-      stepLabel.textContent = `${task.progress} / ${task.total}`;
 
       if (task.status === 'completed') {
         clearInterval(poll);
-        overlay.classList.add('hidden');
         showToast(type === 'analyze' ? '分析完成！' : '合成完成！', 'success');
         await refreshChapters();
+        if (state.currentChapter) {
+          await loadChapterContent(state.currentChapter.id);
+        }
+      } else if (task.status === 'failed') {
+        clearInterval(poll);
+        showToast(`任务失败: ${task.error || '未知错误'}`, 'error');
+      } else if (percent > 0 && percent < 100) {
+        console.debug(`${type} task ${taskId}: ${task.progress} / ${task.total}`);
       }
     } catch (e) {
       clearInterval(poll);
-      overlay.classList.add('hidden');
       showToast('任务查询失败', 'error');
     }
   }, 1000);
+}
+
+async function analyzeChapterIds(chapterIds) {
+  if (!state.projectId) return;
+  if (!chapterIds.length) {
+    showToast('请先选择要分析的章节', 'error');
+    return;
+  }
+
+  const data = await api.analyze(chapterIds);
+  showToast(`开始分析 ${data.chapter_count} 章`, 'success');
+  watchTask(data.task_id, 'analyze');
 }
 
 // ── Data Loading ──────────────────────────────
@@ -1378,6 +1406,8 @@ async function refreshChapters() {
   try {
     const data = await api.getChapters(state.projectId);
     state.chapters = data.chapters;
+    const validIds = new Set(state.chapters.map(ch => ch.id));
+    state.selectedChapterIds = new Set([...state.selectedChapterIds].filter(id => validIds.has(id)));
     renderChapters();
   } catch (e) {
     showToast('刷新章节失败', 'error');
@@ -1412,6 +1442,7 @@ function showBookshelf() {
   state.characters = [];
   state.voices = null;
   state.audioPlaying = false;
+  state.selectedChapterIds.clear();
 
   document.getElementById('bookshelf').classList.remove('hidden');
   document.getElementById('upload-zone').classList.add('hidden');
@@ -1467,6 +1498,7 @@ async function openProject(projectId) {
   state.characters = [];
   state.voices = null;
   state.audioPlaying = false;
+  state.selectedChapterIds.clear();
 
   document.getElementById('bookshelf').classList.add('hidden');
   document.getElementById('upload-zone').classList.add('hidden');
@@ -1643,10 +1675,23 @@ function initEventHandlers() {
 
   // Chapter click
   document.getElementById('chapter-list').addEventListener('click', e => {
+    if (e.target.closest('.chapter-select')) return;
     const item = e.target.closest('.chapter-item');
     if (!item) return;
     const id = parseInt(item.dataset.id);
     loadChapterContent(id);
+  });
+
+  document.getElementById('chapter-list').addEventListener('change', e => {
+    const checkbox = e.target.closest('.chapter-select');
+    if (!checkbox) return;
+    const id = parseInt(checkbox.dataset.id);
+    if (checkbox.checked) {
+      state.selectedChapterIds.add(id);
+    } else {
+      state.selectedChapterIds.delete(id);
+    }
+    updateChapterActionButtons();
   });
 
   // Chapter search
@@ -1669,7 +1714,27 @@ function initEventHandlers() {
     try {
       const data = await api.analyze([]);
       showToast(`开始分析 ${data.chapter_count} 章`, 'success');
-      await pollTask(data.task_id, 'analyze');
+      watchTask(data.task_id, 'analyze');
+    } catch (e) {
+      showToast('分析失败: ' + e.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-analyze-current').addEventListener('click', async () => {
+    if (!state.currentChapter) {
+      showToast('请先选择章节', 'error');
+      return;
+    }
+    try {
+      await analyzeChapterIds([state.currentChapter.id]);
+    } catch (e) {
+      showToast('分析失败: ' + e.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-analyze-selected').addEventListener('click', async () => {
+    try {
+      await analyzeChapterIds([...state.selectedChapterIds].sort((a, b) => a - b));
     } catch (e) {
       showToast('分析失败: ' + e.message, 'error');
     }
@@ -1684,7 +1749,7 @@ function initEventHandlers() {
     try {
       const data = await api.synthesize([state.currentChapter.id]);
       showToast('开始合成', 'success');
-      await pollTask(data.task_id, 'synthesize');
+      watchTask(data.task_id, 'synthesize');
     } catch (e) {
       showToast('合成失败: ' + e.message, 'error');
     }
@@ -1695,7 +1760,7 @@ function initEventHandlers() {
     try {
       const data = await api.synthesize([]);
       showToast(`开始合成 ${data.chapter_count} 章`, 'success');
-      await pollTask(data.task_id, 'synthesize');
+      watchTask(data.task_id, 'synthesize');
     } catch (e) {
       showToast('合成失败: ' + e.message, 'error');
     }
@@ -1734,6 +1799,7 @@ async function handleUpload(file) {
     state.projectId = data.project_id;
     state.filename = data.filename;
     state.chapters = [];
+    state.selectedChapterIds.clear();
 
     // Refresh projects list
     await loadProjects();

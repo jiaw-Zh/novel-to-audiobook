@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +51,18 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 # ── 全局状态 ──────────────────────────────────────────
 # 存储正在处理的任务状态
 tasks: dict[str, dict] = {}
+
+
+def start_background_job(task_id: str, coro):
+    async def runner():
+        try:
+            await coro
+        except Exception as e:
+            tasks[task_id]["status"] = "failed"
+            tasks[task_id]["error"] = str(e)
+            print(f"后台任务 {task_id} 失败: {e}")
+
+    asyncio.create_task(runner())
 
 
 # ── Pydantic Models ──────────────────────────────────
@@ -434,7 +446,6 @@ async def get_chapter(project_id: str, chapter_id: int):
 @app.post("/api/analyze")
 async def analyze_chapters(
     request: AnalyzeRequest,
-    background_tasks: BackgroundTasks,
     project_id: str = Query(..., description="项目 ID"),
 ):
     """LLM 分析章节"""
@@ -460,8 +471,9 @@ async def analyze_chapters(
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "running", "progress": 0, "total": len(chapter_ids)}
 
-    background_tasks.add_task(
-        run_analysis, project_id, chapter_ids, request.llm_workers, task_id
+    start_background_job(
+        task_id,
+        run_analysis(project_id, chapter_ids, request.llm_workers, task_id),
     )
 
     return {"task_id": task_id, "chapter_count": len(chapter_ids)}
@@ -555,7 +567,6 @@ async def update_voices(project_id: str, update: VoicesUpdate):
 @app.post("/api/synthesize")
 async def synthesize_chapters(
     request: SynthesizeRequest,
-    background_tasks: BackgroundTasks,
     project_id: str = Query(..., description="项目 ID"),
 ):
     """TTS 合成章节"""
@@ -580,8 +591,9 @@ async def synthesize_chapters(
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "running", "progress": 0, "total": len(chapter_ids)}
 
-    background_tasks.add_task(
-        run_synthesis, project_id, chapter_ids, request.tts_workers, task_id
+    start_background_job(
+        task_id,
+        run_synthesis(project_id, chapter_ids, request.tts_workers, task_id),
     )
 
     return {"task_id": task_id, "chapter_count": len(chapter_ids)}
