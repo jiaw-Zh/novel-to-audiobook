@@ -8,6 +8,7 @@ import json
 import uuid
 import asyncio
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -27,7 +28,7 @@ from parser import NovelParser
 from llm_parser import LLMParser, llm_characters_to_voice_config
 from tts_engine import TTSEngine, TTSRequest
 from voice_manager import VoiceManager
-from audio_merger import AudioMerger
+from audio_merger import AudioMerger, get_ffmpeg_executable
 from config import TTSConfig, LLMConfig, AudioConfig
 
 app = FastAPI(title="小说有声书 API", version="1.0.0")
@@ -250,7 +251,9 @@ def synthesize_chapter_sync(
     audio_dir = project_dir / "audio"
     audio_dir.mkdir(exist_ok=True)
     output_path = audio_dir / f"chapter_{ch_id:03d}.mp3"
-    audio_merger.merge_files(segment_files, str(output_path))
+    final_path = Path(audio_merger.merge_files(segment_files, str(output_path)))
+    if final_path.suffix.lower() != ".mp3":
+        raise RuntimeError("MP3 转换失败，请确认 ffmpeg 已安装并在 PATH 中")
 
     for file_path in segment_files:
         try:
@@ -263,6 +266,39 @@ def synthesize_chapter_sync(
         pass
 
     return output_path
+
+
+def ensure_chapter_mp3(project_dir: Path, chapter_id: int) -> Path:
+    audio_dir = project_dir / "audio"
+    mp3_path = audio_dir / f"chapter_{chapter_id:03d}.mp3"
+    if mp3_path.exists():
+        return mp3_path
+
+    wav_path = audio_dir / f"chapter_{chapter_id:03d}.wav"
+    if not wav_path.exists():
+        raise FileNotFoundError("章节音频不存在")
+
+    ffmpeg = get_ffmpeg_executable()
+    if not ffmpeg:
+        raise RuntimeError("未找到 ffmpeg，无法导出 MP3")
+
+    try:
+        subprocess.run(
+            [
+                ffmpeg, "-y",
+                "-i", str(wav_path),
+                "-codec:a", "libmp3lame",
+                "-b:a", "128k",
+                str(mp3_path),
+            ],
+            capture_output=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode(errors="ignore") if exc.stderr else str(exc)
+        raise RuntimeError(f"ffmpeg 转换 MP3 失败: {detail}") from exc
+
+    return mp3_path
 
 
 def load_project_meta(project_id: str) -> Optional[dict]:
@@ -666,22 +702,37 @@ async def get_task_status(task_id: str):
 async def get_audio(project_id: str, chapter_id: int):
     """获取章节音频"""
     project_dir = get_project_dir(project_id)
-    audio_path = project_dir / "audio" / f"chapter_{chapter_id:03d}.mp3"
-    if not audio_path.exists():
+    try:
+        audio_path = ensure_chapter_mp3(project_dir, chapter_id)
+    except FileNotFoundError:
         raise HTTPException(404, "音频不存在")
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
     return FileResponse(audio_path, media_type="audio/mpeg")
 
 
 @app.get("/api/export")
-async def export_audio(project_id: str):
-    """导出全部音频为 ZIP"""
+async def export_audio(project_id: str, chapter_id: Optional[int] = None):
+    """导出单章 MP3 或全部音频 ZIP"""
     import zipfile
-    import io
 
     project_dir = get_project_dir(project_id)
     audio_dir = project_dir / "audio"
     if not audio_dir.exists():
         raise HTTPException(400, "无音频可导出")
+
+    if chapter_id is not None:
+        try:
+            audio_path = ensure_chapter_mp3(project_dir, chapter_id)
+        except FileNotFoundError:
+            raise HTTPException(404, "章节 MP3 不存在")
+        except RuntimeError as e:
+            raise HTTPException(500, str(e))
+        return FileResponse(
+            audio_path,
+            media_type="audio/mpeg",
+            filename=f"chapter_{chapter_id:03d}.mp3",
+        )
 
     # 创建 ZIP
     zip_path = project_dir / "export.zip"

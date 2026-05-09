@@ -5,6 +5,7 @@
 import os
 import logging
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,20 @@ import numpy as np
 import soundfile as sf
 
 logger = logging.getLogger(__name__)
+
+
+def get_ffmpeg_executable() -> Optional[str]:
+    """Return a usable ffmpeg executable, including project-local fallback."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        return ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
 
 
 class AudioMerger:
@@ -127,10 +142,15 @@ class AudioMerger:
         if not mp3_path.endswith(".mp3"):
             mp3_path = mp3_path.rsplit(".", 1)[0] + ".mp3"
 
+        ffmpeg = get_ffmpeg_executable()
+        if not ffmpeg:
+            logger.warning("未找到 ffmpeg，保持 WAV 格式")
+            return wav_path
+
         try:
             subprocess.run(
                 [
-                    "ffmpeg", "-y",
+                    ffmpeg, "-y",
                     "-i", wav_path,
                     "-codec:a", "libmp3lame",
                     "-b:a", self.bitrate,
@@ -144,9 +164,6 @@ class AudioMerger:
                 os.remove(wav_path)
             logger.info(f"MP3 已保存: {mp3_path}")
             return mp3_path
-        except FileNotFoundError:
-            logger.warning("未找到 ffmpeg，保持 WAV 格式")
-            return wav_path
         except subprocess.CalledProcessError as e:
             logger.warning(f"ffmpeg 转换失败: {e.stderr.decode()}")
             return wav_path
@@ -156,10 +173,15 @@ class AudioMerger:
         if not m4b_path.endswith(".m4b"):
             m4b_path = m4b_path.rsplit(".", 1)[0] + ".m4b"
 
+        ffmpeg = get_ffmpeg_executable()
+        if not ffmpeg:
+            logger.warning("未找到 ffmpeg，保持 WAV 格式")
+            return wav_path
+
         try:
             subprocess.run(
                 [
-                    "ffmpeg", "-y",
+                    ffmpeg, "-y",
                     "-i", wav_path,
                     "-codec:a", "aac",
                     "-b:a", self.bitrate,

@@ -1155,8 +1155,10 @@ const api = {
     return `${API_BASE}/api/audio/${chapterId}?project_id=${encodeURIComponent(projectId)}`;
   },
 
-  getExportUrl(projectId) {
-    return `${API_BASE}/api/export?project_id=${encodeURIComponent(projectId)}`;
+  getExportUrl(projectId, chapterId = null) {
+    const params = new URLSearchParams({ project_id: projectId });
+    if (chapterId !== null) params.set('chapter_id', chapterId);
+    return `${API_BASE}/api/export?${params.toString()}`;
   }
 };
 
@@ -1276,6 +1278,7 @@ async function loadChapterContent(chapterId) {
     // Render or clear chapter-scoped analysis.
     renderAnalysis(data.analysis);
     renderVoicePanel(data.analysis);
+    renderAudioPanel();
 
     renderChapters();
   } catch (e) {
@@ -1432,6 +1435,48 @@ function renderVoicePanel(analysis) {
 
   container.innerHTML = html;
   updateSynthesizeButton();
+}
+
+function formatAudioTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function setPlayButton(isPlaying) {
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = isPlaying
+    ? '<svg width="14" height="16" viewBox="0 0 14 16"><rect x="2" y="0" width="3" height="16"/><rect x="9" y="0" width="3" height="16"/></svg>'
+    : '<svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>';
+}
+
+function renderAudioPanel() {
+  const player = document.getElementById('audio-player');
+  const title = document.getElementById('audio-title');
+  const progress = document.getElementById('audio-progress');
+  const current = document.getElementById('audio-current');
+  const total = document.getElementById('audio-total');
+  const hasAudio = Boolean(state.projectId && state.currentChapter?.has_audio);
+
+  state.audioPlaying = false;
+  setPlayButton(false);
+  progress.style.width = '0%';
+  current.textContent = '0:00';
+  total.textContent = '0:00';
+
+  if (!hasAudio) {
+    player.removeAttribute('src');
+    player.load();
+    title.textContent = '当前章节尚未合成音频';
+    document.getElementById('play-btn').disabled = true;
+    return;
+  }
+
+  player.src = api.getAudioUrl(state.projectId, state.currentChapter.id);
+  player.load();
+  title.textContent = `${state.currentChapter.title} · MP3`;
+  document.getElementById('play-btn').disabled = false;
 }
 
 // ── Task Polling ──────────────────────────────
@@ -1862,8 +1907,12 @@ function initEventHandlers() {
 
   // Export
   document.getElementById('btn-export').addEventListener('click', () => {
-    if (!state.projectId) return;
-    window.open(api.getExportUrl(state.projectId), '_blank');
+    if (!state.projectId || !state.currentChapter) return;
+    if (!state.currentChapter.has_audio) {
+      showToast('当前章节还没有 MP3 音频', 'error');
+      return;
+    }
+    window.open(api.getExportUrl(state.projectId, state.currentChapter.id), '_blank');
   });
 
   // Save voices
@@ -1871,6 +1920,24 @@ function initEventHandlers() {
 
   // Play/pause
   document.getElementById('play-btn').addEventListener('click', togglePlay);
+  const player = document.getElementById('audio-player');
+  player.addEventListener('loadedmetadata', () => {
+    document.getElementById('audio-total').textContent = formatAudioTime(player.duration);
+  });
+  player.addEventListener('timeupdate', () => {
+    const percent = player.duration ? (player.currentTime / player.duration) * 100 : 0;
+    document.getElementById('audio-progress').style.width = percent + '%';
+    document.getElementById('audio-current').textContent = formatAudioTime(player.currentTime);
+  });
+  player.addEventListener('ended', () => {
+    state.audioPlaying = false;
+    setPlayButton(false);
+  });
+  player.addEventListener('error', () => {
+    state.audioPlaying = false;
+    setPlayButton(false);
+    showToast('音频加载失败，请确认本章已合成 MP3', 'error');
+  });
 
   // Cancel process
   document.getElementById('btn-cancel-process').addEventListener('click', () => {
@@ -1966,20 +2033,30 @@ function saveVoicesConfig() {
 function togglePlay() {
   const player = document.getElementById('audio-player');
   if (!state.projectId || !state.currentChapter) return;
+  if (!state.currentChapter.has_audio) {
+    showToast('当前章节还没有 MP3 音频', 'error');
+    return;
+  }
 
   if (state.audioPlaying) {
     player.pause();
     state.audioPlaying = false;
+    setPlayButton(false);
   } else {
-    player.src = api.getAudioUrl(state.projectId, state.currentChapter.id);
-    player.play();
-    state.audioPlaying = true;
+    if (!player.src) {
+      player.src = api.getAudioUrl(state.projectId, state.currentChapter.id);
+    }
+    player.play()
+      .then(() => {
+        state.audioPlaying = true;
+        setPlayButton(true);
+      })
+      .catch(() => {
+        state.audioPlaying = false;
+        setPlayButton(false);
+        showToast('播放失败，请确认音频文件是有效 MP3', 'error');
+      });
   }
-
-  const btn = document.getElementById('play-btn');
-  btn.innerHTML = state.audioPlaying
-    ? '<svg width="14" height="16" viewBox="0 0 14 16"><rect x="2" y="0" width="3" height="16"/><rect x="9" y="0" width="3" height="16"/></svg>'
-    : '<svg width="14" height="16" viewBox="0 0 14 16"><polygon points="2,0 14,8 2,16"/></svg>';
 }
 
 function previewVoice(characterName) {
