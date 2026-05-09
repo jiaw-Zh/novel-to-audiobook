@@ -67,6 +67,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
   grid-template-rows: 52px 1fr;
   height: 100vh;
 }
+.app.bookshelf-mode {
+  grid-template-columns: 1fr;
+}
+.app.bookshelf-mode .main {
+  grid-column: 1;
+}
 
 /* ── Header ─────────────────────────────────────────── */
 .header {
@@ -80,6 +86,15 @@ input, select, textarea { font-family: inherit; color: inherit; }
   z-index: 10;
 }
 .header-left { display: flex; align-items: center; gap: 12px; }
+.brand-home {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px 4px 0;
+}
+.brand-home:hover .header-title { color: var(--accent-hover); }
 .header-logo {
   width: 28px; height: 28px;
   background: var(--accent);
@@ -87,7 +102,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 15px;
 }
-.header-title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+.header-title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; transition: color .12s; }
 .header-subtitle { color: var(--text-2); font-size: 12px; margin-left: 4px; }
 .header-filename { color: var(--text-2); font-size: 12px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--border); }
 
@@ -109,6 +124,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   flex-direction: column;
   overflow: hidden;
 }
+.sidebar.hidden { display: none; }
 .sidebar-header {
   padding: 14px 16px 10px;
   display: flex;
@@ -877,8 +893,10 @@ textarea.form-input {
   <!-- ── Header ──────────────────────────────── -->
   <header class="header">
     <div class="header-left">
-      <div class="header-logo">书</div>
-      <span class="header-title">小说有声书</span>
+      <div class="brand-home" id="brand-home" title="返回书架">
+        <div class="header-logo">书</div>
+        <span class="header-title">小说有声书</span>
+      </div>
       <span class="header-subtitle">MiMo TTS</span>
       <div class="project-switcher" id="project-switcher" style="display:none">
         <button class="project-switcher-btn" id="project-switcher-btn">
@@ -1148,11 +1166,16 @@ const state = {
   filename: null,
   chapters: [],
   currentChapter: null,
+  currentChapterHasAnalysis: false,
   characters: [],
   voices: null,
   audioPlaying: false,
   projects: [],
   selectedChapterIds: new Set(),
+  taskBusy: {
+    analyze: false,
+    synthesize: false,
+  },
 };
 
 // ── Toast ─────────────────────────────────────
@@ -1205,13 +1228,37 @@ function updateChapterActionButtons() {
   const hasAnalysis = state.chapters.some(ch => ch.has_analysis);
   const hasCurrent = Boolean(state.currentChapter);
   const selectedCount = state.selectedChapterIds.size;
+  const analyzing = state.taskBusy.analyze;
+  const synthesizing = state.taskBusy.synthesize;
   const selectedBtn = document.getElementById('btn-analyze-selected');
 
-  document.getElementById('btn-analyze-current').disabled = !hasCurrent;
-  selectedBtn.disabled = selectedCount === 0;
-  selectedBtn.textContent = selectedCount > 0 ? `分析选中章节 (${selectedCount})` : '分析选中章节';
-  document.getElementById('btn-analyze').disabled = !hasPending;
-  document.getElementById('btn-synthesize-all').disabled = !hasAnalysis;
+  document.getElementById('btn-analyze-current').disabled = analyzing || !hasCurrent;
+  selectedBtn.disabled = analyzing || selectedCount === 0;
+  selectedBtn.textContent = analyzing
+    ? '分析中...'
+    : selectedCount > 0 ? `分析选中章节 (${selectedCount})` : '分析选中章节';
+
+  const analyzeAllBtn = document.getElementById('btn-analyze');
+  analyzeAllBtn.disabled = analyzing || !hasPending;
+  analyzeAllBtn.textContent = analyzing ? '分析中...' : 'LLM 分析';
+
+  const synthesizeAllBtn = document.getElementById('btn-synthesize-all');
+  synthesizeAllBtn.disabled = synthesizing || !hasAnalysis;
+  synthesizeAllBtn.textContent = synthesizing ? '合成中...' : '合成全部';
+  updateSynthesizeButton();
+}
+
+function updateSynthesizeButton() {
+  const button = document.getElementById('btn-synthesize');
+  if (!button) return;
+  const hasCurrentAnalysis = Boolean(state.currentChapterHasAnalysis || state.currentChapter?.has_analysis);
+  button.disabled = state.taskBusy.synthesize || !hasCurrentAnalysis;
+  button.textContent = state.taskBusy.synthesize ? '🔊 合成中...' : '🔊 合成本章';
+}
+
+function setTaskBusy(type, busy) {
+  state.taskBusy[type] = busy;
+  updateChapterActionButtons();
 }
 
 async function loadChapterContent(chapterId) {
@@ -1221,15 +1268,14 @@ async function loadChapterContent(chapterId) {
     const data = await api.getChapter(state.projectId, chapterId);
     const ch = state.chapters.find(c => c.id === chapterId);
     state.currentChapter = ch;
+    state.currentChapterHasAnalysis = Boolean(data.analysis);
 
     // Render paragraphs
     renderChapterText(data);
 
-    // Render analysis if available
-    if (data.analysis) {
-      renderAnalysis(data.analysis);
-      renderVoicePanel(data.analysis);
-    }
+    // Render or clear chapter-scoped analysis.
+    renderAnalysis(data.analysis);
+    renderVoicePanel(data.analysis);
 
     renderChapters();
   } catch (e) {
@@ -1263,8 +1309,8 @@ function renderChapterText(data) {
 }
 
 function renderAnalysis(analysis) {
-  const paragraphs = analysis.segments || analysis.paragraphs || [];
-  const characters = analysis.characters || [];
+  const paragraphs = analysis?.segments || analysis?.paragraphs || [];
+  const characters = analysis?.characters || [];
 
   document.getElementById('stat-paragraphs').textContent = paragraphs.length;
   document.getElementById('stat-characters').textContent = characters.length;
@@ -1277,6 +1323,16 @@ function renderAnalysis(analysis) {
 
   // Render character grid
   const grid = document.getElementById('char-grid');
+  if (!analysis) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">🔍</div>
+      <div class="empty-state-text">当前章节尚未分析</div>
+    </div>`;
+    document.getElementById('stat-duration').textContent = '-';
+    document.getElementById('stat-tokens').textContent = '-';
+    return;
+  }
+
   grid.innerHTML = characters.map(c => {
     const genderClass = c.gender === 'male' ? 'male' : c.gender === 'female' ? 'female' : 'unknown';
     const genderLabel = c.gender === 'male' ? '男' : c.gender === 'female' ? '女' : '未知';
@@ -1305,6 +1361,15 @@ function renderVoicePanel(analysis) {
   const container = document.getElementById('voice-panel-content');
   const voices = state.voices || { default: { mode: 'preset', voice_id: '白桦', style_instruction: '标准播音腔朗读' }, characters: {} };
 
+  if (!analysis) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">🎤</div>
+      <div class="empty-state-text">当前章节尚未分析</div>
+    </div>`;
+    updateSynthesizeButton();
+    return;
+  }
+
   const voicePresets = ["白桦", "苏打", "冰糖", "茉莉", "Mia", "Chloe", "Milo", "Dean"];
 
   // Narrator
@@ -1328,9 +1393,14 @@ function renderVoicePanel(analysis) {
   </div>`;
 
   // Characters
-  const characters = analysis?.characters || state.characters;
+  const characters = analysis.characters || [];
   for (const c of characters) {
     const charVoice = voices.characters?.[c.name] || {};
+    const mode = charVoice.mode || (charVoice.voice_prompt ? 'voicedesign' : 'preset');
+    const styleField = mode === 'voicedesign' ? 'voice_prompt' : 'style_instruction';
+    const styleValue = mode === 'voicedesign'
+      ? (charVoice.voice_prompt || charVoice.style_instruction || c.voice_hint || c.description || '')
+      : (charVoice.style_instruction || charVoice.voice_prompt || c.voice_hint || c.description || '');
     const genderClass = c.gender === 'male' ? 'male' : c.gender === 'female' ? 'female' : 'unknown';
 
     html += `<div class="voice-item">
@@ -1339,9 +1409,12 @@ function renderVoicePanel(analysis) {
           <span class="gender-dot ${genderClass}"></span>
           ${c.name}
         </div>
-        <span class="voice-item-badge ${charVoice.mode || 'preset'}">${charVoice.mode || 'preset'}</span>
+        <span class="voice-item-badge ${mode}">${mode}</span>
       </div>
       <div class="voice-item-form">
+        <input type="hidden" data-role="char" data-name="${c.name}" data-field="mode" value="${mode}">
+        <input type="hidden" data-role="char" data-name="${c.name}" data-field="gender" value="${charVoice.gender || c.gender || ''}">
+        <input type="hidden" data-role="char" data-name="${c.name}" data-field="age" value="${charVoice.age || c.age || ''}">
         <div class="form-row">
           <span class="form-label">音色</span>
           <select class="form-select" data-role="char" data-name="${c.name}" data-field="voice_id">
@@ -1350,7 +1423,7 @@ function renderVoicePanel(analysis) {
         </div>
         <div class="form-row">
           <span class="form-label">风格</span>
-          <textarea class="form-input" data-role="char" data-name="${c.name}" data-field="style_instruction">${charVoice.style_instruction || c.voice_hint || ''}</textarea>
+          <textarea class="form-input" data-role="char" data-name="${c.name}" data-field="${styleField}">${styleValue}</textarea>
         </div>
         <button class="voice-play-btn" onclick="previewVoice('${c.name}')">▶ 试听</button>
       </div>
@@ -1358,11 +1431,12 @@ function renderVoicePanel(analysis) {
   }
 
   container.innerHTML = html;
-  document.getElementById('btn-synthesize').disabled = false;
+  updateSynthesizeButton();
 }
 
 // ── Task Polling ──────────────────────────────
 function watchTask(taskId, type) {
+  setTaskBusy(type, true);
   const poll = setInterval(async () => {
     try {
       const task = await api.getTaskStatus(taskId);
@@ -1370,19 +1444,23 @@ function watchTask(taskId, type) {
 
       if (task.status === 'completed') {
         clearInterval(poll);
+        setTaskBusy(type, false);
         showToast(type === 'analyze' ? '分析完成！' : '合成完成！', 'success');
         await refreshChapters();
+        await loadVoices();
         if (state.currentChapter) {
           await loadChapterContent(state.currentChapter.id);
         }
       } else if (task.status === 'failed') {
         clearInterval(poll);
+        setTaskBusy(type, false);
         showToast(`任务失败: ${task.error || '未知错误'}`, 'error');
       } else if (percent > 0 && percent < 100) {
         console.debug(`${type} task ${taskId}: ${task.progress} / ${task.total}`);
       }
     } catch (e) {
       clearInterval(poll);
+      setTaskBusy(type, false);
       showToast('任务查询失败', 'error');
     }
   }, 1000);
@@ -1425,6 +1503,18 @@ async function loadVoices() {
 }
 
 // ── Bookshelf & Project Management ──────────
+function getRouteProjectId() {
+  const id = decodeURIComponent(window.location.pathname.replace(/^\/+|\/+$/g, ''));
+  return id && !id.includes('/') ? id : null;
+}
+
+function setRouteProjectId(projectId, replace = false) {
+  const path = projectId ? `/${encodeURIComponent(projectId)}` : '/';
+  if (window.location.pathname === path) return;
+  const method = replace ? 'replaceState' : 'pushState';
+  history[method]({}, '', path);
+}
+
 async function loadProjects() {
   try {
     const data = await api.getProjects();
@@ -1434,11 +1524,13 @@ async function loadProjects() {
   }
 }
 
-function showBookshelf() {
+function showBookshelf(updateRoute = true) {
+  if (updateRoute) setRouteProjectId(null);
   state.projectId = null;
   state.filename = null;
   state.chapters = [];
   state.currentChapter = null;
+  state.currentChapterHasAnalysis = false;
   state.characters = [];
   state.voices = null;
   state.audioPlaying = false;
@@ -1447,6 +1539,9 @@ function showBookshelf() {
   document.getElementById('bookshelf').classList.remove('hidden');
   document.getElementById('upload-zone').classList.add('hidden');
   document.getElementById('content-area').classList.add('hidden');
+  document.querySelector('.app').classList.add('bookshelf-mode');
+  document.querySelector('.sidebar').classList.add('hidden');
+  document.getElementById('right-panel').classList.add('hidden');
   document.getElementById('project-switcher').style.display = 'none';
   document.getElementById('header-filename').style.display = 'none';
   document.getElementById('badge-chapters').style.display = 'none';
@@ -1487,14 +1582,16 @@ function triggerBookshelfUpload() {
   document.getElementById('file-input').click();
 }
 
-async function openProject(projectId) {
+async function openProject(projectId, updateRoute = true) {
   const project = state.projects.find(p => p.id === projectId);
   if (!project) return;
+  if (updateRoute) setRouteProjectId(projectId);
 
   state.projectId = projectId;
   state.filename = project.filename || project.name;
   state.chapters = [];
   state.currentChapter = null;
+  state.currentChapterHasAnalysis = false;
   state.characters = [];
   state.voices = null;
   state.audioPlaying = false;
@@ -1503,6 +1600,9 @@ async function openProject(projectId) {
   document.getElementById('bookshelf').classList.add('hidden');
   document.getElementById('upload-zone').classList.add('hidden');
   document.getElementById('content-area').classList.remove('hidden');
+  document.querySelector('.app').classList.remove('bookshelf-mode');
+  document.querySelector('.sidebar').classList.remove('hidden');
+  document.getElementById('right-panel').classList.remove('hidden');
 
   // Update header
   document.getElementById('header-filename').textContent = state.filename;
@@ -1566,11 +1666,7 @@ function updateProjectSwitcher() {
     </div>
   `).join('');
 
-  dropdown.innerHTML = items + `
-    <div class="project-switcher-divider"></div>
-    <div class="project-switcher-footer">
-      <button class="btn btn-ghost btn-sm" id="switcher-bookshelf-btn">📚 返回书架</button>
-    </div>`;
+  dropdown.innerHTML = items;
 
   // Bind events on dropdown items
   dropdown.querySelectorAll('.project-switcher-item').forEach(item => {
@@ -1590,13 +1686,6 @@ function updateProjectSwitcher() {
     });
   });
 
-  const bookshelfBtn = dropdown.querySelector('#switcher-bookshelf-btn');
-  if (bookshelfBtn) {
-    bookshelfBtn.addEventListener('click', () => {
-      dropdown.classList.remove('open');
-      showBookshelf();
-    });
-  }
 }
 
 function closeSwitcherDropdown(e) {
@@ -1662,6 +1751,11 @@ function initEventHandlers() {
 
   // Bookshelf upload button
   document.getElementById('btn-bookshelf-upload').addEventListener('click', triggerBookshelfUpload);
+
+  document.getElementById('brand-home').addEventListener('click', () => {
+    closeSwitcherDropdown({ target: document.body });
+    showBookshelf();
+  });
 
   // Project switcher toggle
   document.getElementById('project-switcher-btn').addEventListener('click', (e) => {
@@ -1799,15 +1893,20 @@ async function handleUpload(file) {
     state.projectId = data.project_id;
     state.filename = data.filename;
     state.chapters = [];
+    state.currentChapterHasAnalysis = false;
     state.selectedChapterIds.clear();
 
     // Refresh projects list
     await loadProjects();
+    setRouteProjectId(data.project_id);
 
     // Switch to project view
     document.getElementById('bookshelf').classList.add('hidden');
     document.getElementById('upload-zone').classList.add('hidden');
     document.getElementById('content-area').classList.remove('hidden');
+    document.querySelector('.app').classList.remove('bookshelf-mode');
+    document.querySelector('.sidebar').classList.remove('hidden');
+    document.getElementById('right-panel').classList.remove('hidden');
     document.getElementById('header-filename').textContent = data.filename;
     document.getElementById('header-filename').style.display = '';
     document.getElementById('project-switcher').style.display = '';
@@ -1831,7 +1930,10 @@ async function handleUpload(file) {
 function saveVoicesConfig() {
   if (!state.projectId) return;
 
-  const voices = { default: {}, characters: {} };
+  const voices = {
+    default: { ...(state.voices?.default || {}) },
+    characters: { ...(state.voices?.characters || {}) }
+  };
 
   // Read form values
   document.querySelectorAll('[data-role]').forEach(el => {
@@ -1850,11 +1952,14 @@ function saveVoicesConfig() {
 
   voices.default.mode = 'preset';
   for (const name of Object.keys(voices.characters)) {
-    voices.characters[name].mode = 'preset';
+    voices.characters[name].mode = voices.characters[name].mode || 'preset';
   }
 
   api.updateVoices(state.projectId, voices)
-    .then(() => showToast('音色配置已保存', 'success'))
+    .then(() => {
+      state.voices = voices;
+      showToast('音色配置已保存', 'success');
+    })
     .catch(e => showToast('保存失败: ' + e.message, 'error'));
 }
 
@@ -1888,12 +1993,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load projects list
   await loadProjects();
 
-  if (state.projects.length > 0) {
-    // Show bookshelf view
-    showBookshelf();
+  const routeProjectId = getRouteProjectId();
+  if (routeProjectId && state.projects.some(p => p.id === routeProjectId)) {
+    await openProject(routeProjectId, false);
+  } else if (routeProjectId) {
+    showToast('项目不存在，已返回书架', 'error');
+    showBookshelf(false);
+    setRouteProjectId(null, true);
+  } else if (state.projects.length > 0) {
+    showBookshelf(false);
   } else {
-    // No projects - show upload zone (bookshelf empty state)
-    showBookshelf();
+    showBookshelf(false);
+  }
+});
+
+window.addEventListener('popstate', async () => {
+  const routeProjectId = getRouteProjectId();
+  if (routeProjectId && state.projects.some(p => p.id === routeProjectId)) {
+    await openProject(routeProjectId, false);
+  } else {
+    showBookshelf(false);
   }
 });
 </script>

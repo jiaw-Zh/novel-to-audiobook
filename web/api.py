@@ -700,6 +700,14 @@ async def serve_index():
     return FileResponse(WEB_DIR / "index.html")
 
 
+@app.get("/{project_id}")
+async def serve_project(project_id: str):
+    project_dir = get_project_dir(project_id)
+    if not project_dir.exists():
+        raise HTTPException(404, "项目不存在")
+    return FileResponse(WEB_DIR / "index.html")
+
+
 # 挂载静态资源
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
