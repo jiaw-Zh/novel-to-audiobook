@@ -24,8 +24,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from epub_parser import parse_epub
 from parser import NovelParser
-from llm_parser import LLMParser
-from tts_engine import TTSEngine
+from llm_parser import LLMParser, llm_characters_to_voice_config
+from tts_engine import TTSEngine, TTSRequest
 from voice_manager import VoiceManager
 from audio_merger import AudioMerger
 from config import TTSConfig, LLMConfig, AudioConfig
@@ -161,6 +161,98 @@ def save_voices_config(project_id: str, config: dict):
     )
 
 
+def make_default_voices_config(characters: list[dict]) -> dict:
+    config = llm_characters_to_voice_config(characters)
+    config["default"] = {
+        "mode": "preset",
+        "voice_id": "白桦",
+        "style_instruction": "用标准的播音腔朗读，语速适中，情感克制",
+    }
+    return config
+
+
+def get_analysis_segments(analysis: dict) -> list[dict]:
+    return analysis.get("segments") or analysis.get("paragraphs") or []
+
+
+def analyze_chapter_sync(content: str, config: dict) -> dict:
+    llm_parser = LLMParser(
+        api_key=config["llm_api_key"],
+        base_url=config["llm_base_url"],
+        model=config["llm_model"],
+    )
+    return llm_parser.analyze_text(content)
+
+
+def synthesize_chapter_sync(
+    project_dir: Path,
+    ch_id: int,
+    analysis: dict,
+    voices_config: dict,
+    config: dict,
+) -> Path:
+    tts_config = TTSConfig(
+        api_key=config["tts_api_key"],
+        base_url=config["tts_base_url"],
+        model_preset=config["tts_model"],
+    )
+    tts_engine = TTSEngine(tts_config)
+    audio_merger = AudioMerger(output_format="mp3")
+
+    cache_dir = project_dir / ".cache" / f"chapter_{ch_id:03d}"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    segment_files = []
+
+    for seg_i, para in enumerate(get_analysis_segments(analysis)):
+        speaker = para.get("speaker") or "旁白"
+        text = para.get("text", "")
+        if not text.strip():
+            continue
+
+        voice_config = voices_config.get("characters", {}).get(speaker) or voices_config.get("default", {})
+        mode = voice_config.get("mode") or "preset"
+        voice_id = voice_config.get("voice_id") or "白桦"
+        voice_prompt = voice_config.get("voice_prompt") or ""
+        style = voice_config.get("style_instruction") or ""
+
+        voice_hint = para.get("voice_hint") or ""
+        if voice_hint and style and voice_hint not in style:
+            style = f"{style}，{voice_hint}"
+        elif voice_hint:
+            style = voice_hint
+
+        segment_path = cache_dir / f"seg_{seg_i:04d}.wav"
+        result = tts_engine.synthesize(TTSRequest(
+            text=text,
+            mode=mode,
+            voice_id=voice_id,
+            voice_prompt=voice_prompt,
+            style_instruction=style,
+            output_path=str(segment_path),
+        ))
+        segment_files.append(result)
+
+    if not segment_files:
+        raise RuntimeError("章节没有可合成的文本段落")
+
+    audio_dir = project_dir / "audio"
+    audio_dir.mkdir(exist_ok=True)
+    output_path = audio_dir / f"chapter_{ch_id:03d}.mp3"
+    audio_merger.merge_files(segment_files, str(output_path))
+
+    for file_path in segment_files:
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+    try:
+        cache_dir.rmdir()
+    except OSError:
+        pass
+
+    return output_path
+
+
 def load_project_meta(project_id: str) -> Optional[dict]:
     """Load project metadata from meta.json"""
     project_dir = get_project_dir(project_id)
@@ -201,8 +293,13 @@ def get_config() -> dict:
 @app.get("/api/status")
 async def get_status():
     """获取系统状态"""
+    config = get_config()
     return {
-        "config": get_config(),
+        "config": {
+            **config,
+            "llm_api_key": bool(config["llm_api_key"]),
+            "tts_api_key": bool(config["tts_api_key"]),
+        },
     }
 
 
@@ -375,12 +472,6 @@ async def run_analysis(project_id: str, chapter_ids: list[int], max_workers: int
     config = get_config()
     project_dir = get_project_dir(project_id)
 
-    llm_parser = LLMParser(
-        api_key=config["llm_api_key"],
-        base_url=config["llm_base_url"],
-        model=config["llm_model"],
-    )
-
     chapters = load_chapters(project_id)
     all_characters = load_characters(project_id)
     completed = 0
@@ -391,12 +482,12 @@ async def run_analysis(project_id: str, chapter_ids: list[int], max_workers: int
         content = ch_file.read_text(encoding="utf-8")
 
         try:
-            result = await llm_parser.analyze_chapter(content)
+            result = await asyncio.to_thread(analyze_chapter_sync, content, config)
             save_analysis(project_id, ch_id, result)
 
             # 更新角色表
             for char in result.get("characters", []):
-                if not any(c["name"] == char["name"] for c in all_characters):
+                if char.get("name") and not any(c.get("name") == char["name"] for c in all_characters):
                     all_characters.append(char)
 
             # 更新章节状态
@@ -430,8 +521,7 @@ async def run_analysis(project_id: str, chapter_ids: list[int], max_workers: int
     save_characters(project_id, all_characters)
 
     # 自动生成音色配置
-    voice_manager = VoiceManager()
-    auto_voices = voice_manager.auto_assign(all_characters)
+    auto_voices = make_default_voices_config(all_characters)
     save_voices_config(project_id, auto_voices)
 
     tasks[task_id]["status"] = "completed"
@@ -503,13 +593,6 @@ async def run_synthesis(project_id: str, chapter_ids: list[int], max_workers: in
     project_dir = get_project_dir(project_id)
     voices_config = load_voices_config(project_id)
 
-    tts_engine = TTSEngine(
-        api_key=config["tts_api_key"],
-        base_url=config["tts_base_url"],
-        model=config["tts_model"],
-    )
-    audio_merger = AudioMerger()
-
     chapters = load_chapters(project_id)
     completed = 0
 
@@ -520,42 +603,14 @@ async def run_synthesis(project_id: str, chapter_ids: list[int], max_workers: in
             return
 
         try:
-            segments = []
-            for para in analysis.get("paragraphs", []):
-                speaker = para.get("speaker")
-                text = para.get("text", "")
-                if not text.strip():
-                    continue
-
-                # 获取角色音色配置
-                voice_config = voices_config.get("characters", {}).get(speaker, {})
-                if not voice_config:
-                    voice_config = voices_config.get("default", {})
-
-                voice_id = voice_config.get("voice_id", "白桦")
-                style = voice_config.get("style_instruction", "")
-
-                # 合并 LLM 的 voice_hint
-                voice_hint = para.get("voice_hint", "")
-                if voice_hint and style:
-                    style = f"{style}，{voice_hint}"
-                elif voice_hint:
-                    style = voice_hint
-
-                # TTS 合成
-                audio_data = await tts_engine.synthesize(
-                    text=text,
-                    voice_id=voice_id,
-                    style_instruction=style,
-                )
-                segments.append(audio_data)
-
-            # 拼接音频
-            audio_dir = project_dir / "audio"
-            audio_dir.mkdir(exist_ok=True)
-            output_path = audio_dir / f"chapter_{ch_id:03d}.mp3"
-
-            audio_merger.merge(segments, str(output_path))
+            await asyncio.to_thread(
+                synthesize_chapter_sync,
+                project_dir,
+                ch_id,
+                analysis,
+                voices_config,
+                config,
+            )
 
             # 更新状态
             for ch in chapters:
@@ -639,4 +694,4 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="127.0.0.1", port=8134)

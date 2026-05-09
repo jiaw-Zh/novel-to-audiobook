@@ -1068,30 +1068,34 @@ const api = {
   },
 
   async getChapters(projectId) {
-    const res = await fetch(`${API_BASE}/api/chapters?project_id=${projectId}`);
+    const res = await fetch(`${API_BASE}/api/chapters?project_id=${encodeURIComponent(projectId)}`);
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
   async getChapter(projectId, chapterId) {
-    const res = await fetch(`${API_BASE}/api/chapters/${chapterId}?project_id=${projectId}`);
+    const res = await fetch(`${API_BASE}/api/chapters/${chapterId}?project_id=${encodeURIComponent(projectId)}`);
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
-  async analyze(projectIds, workers = 5) {
-    const res = await fetch(`${API_BASE}/api/analyze`, {
+  async analyze(chapterIds, workers = 5) {
+    const res = await fetch(`${API_BASE}/api/analyze?project_id=${encodeURIComponent(state.projectId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: state.projectId, chapter_ids: projectIds, llm_workers: workers })
+      body: JSON.stringify({ chapter_ids: chapterIds, llm_workers: workers })
     });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
-  async synthesize(projectIds, workers = 3) {
-    const res = await fetch(`${API_BASE}/api/synthesize`, {
+  async synthesize(chapterIds, workers = 3) {
+    const res = await fetch(`${API_BASE}/api/synthesize?project_id=${encodeURIComponent(state.projectId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: state.projectId, chapter_ids: projectIds, tts_workers: workers })
+      body: JSON.stringify({ chapter_ids: chapterIds, tts_workers: workers })
     });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
@@ -1101,17 +1105,17 @@ const api = {
   },
 
   async getCharacters(projectId) {
-    const res = await fetch(`${API_BASE}/api/characters?project_id=${projectId}`);
+    const res = await fetch(`${API_BASE}/api/characters?project_id=${encodeURIComponent(projectId)}`);
     return res.json();
   },
 
   async getVoices(projectId) {
-    const res = await fetch(`${API_BASE}/api/voices?project_id=${projectId}`);
+    const res = await fetch(`${API_BASE}/api/voices?project_id=${encodeURIComponent(projectId)}`);
     return res.json();
   },
 
   async updateVoices(projectId, voices) {
-    const res = await fetch(`${API_BASE}/api/voices?project_id=${projectId}`, {
+    const res = await fetch(`${API_BASE}/api/voices?project_id=${encodeURIComponent(projectId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(voices)
@@ -1120,11 +1124,11 @@ const api = {
   },
 
   getAudioUrl(projectId, chapterId) {
-    return `${API_BASE}/api/audio/${chapterId}?project_id=${projectId}`;
+    return `${API_BASE}/api/audio/${chapterId}?project_id=${encodeURIComponent(projectId)}`;
   },
 
   getExportUrl(projectId) {
-    return `${API_BASE}/api/export?project_id=${projectId}`;
+    return `${API_BASE}/api/export?project_id=${encodeURIComponent(projectId)}`;
   }
 };
 
@@ -1217,8 +1221,9 @@ function renderChapterText(data) {
 
   title.textContent = state.currentChapter?.title || `第 ${data.id} 章`;
 
-  if (data.analysis && data.analysis.paragraphs) {
-    container.innerHTML = data.analysis.paragraphs.map(p => {
+  const paragraphs = data.analysis?.segments || data.analysis?.paragraphs || [];
+  if (paragraphs.length > 0) {
+    container.innerHTML = paragraphs.map(p => {
       if (p.speaker) {
         return `<div class="para para-dialogue">
           <span class="para-speaker speaker-${p.speaker}">${p.speaker}</span>${p.text}
@@ -1236,7 +1241,7 @@ function renderChapterText(data) {
 }
 
 function renderAnalysis(analysis) {
-  const paragraphs = analysis.paragraphs || [];
+  const paragraphs = analysis.segments || analysis.paragraphs || [];
   const characters = analysis.characters || [];
 
   document.getElementById('stat-paragraphs').textContent = paragraphs.length;
@@ -1539,7 +1544,7 @@ function updateProjectSwitcher() {
   dropdown.querySelectorAll('.project-switcher-item').forEach(item => {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.project-switcher-item-delete')) return;
-      const id = parseInt(item.dataset.projectId);
+      const id = item.dataset.projectId;
       dropdown.classList.remove('open');
       if (id !== state.projectId) openProject(id);
     });
@@ -1548,7 +1553,7 @@ function updateProjectSwitcher() {
   dropdown.querySelectorAll('.project-switcher-item-delete').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = parseInt(btn.dataset.deleteId);
+      const id = btn.dataset.deleteId;
       deleteProjectConfirmed(id);
     });
   });
@@ -1597,13 +1602,13 @@ function initEventHandlers() {
     const deleteBtn = e.target.closest('.bookshelf-card-delete');
     if (deleteBtn) {
       e.stopPropagation();
-      const id = parseInt(deleteBtn.dataset.deleteId);
+      const id = deleteBtn.dataset.deleteId;
       await deleteProjectConfirmed(id);
       return;
     }
     const card = e.target.closest('.bookshelf-card');
     if (card) {
-      const id = parseInt(card.dataset.projectId);
+      const id = card.dataset.projectId;
       await openProject(id);
     }
   });
